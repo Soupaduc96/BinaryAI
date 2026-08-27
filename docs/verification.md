@@ -37,13 +37,13 @@ Four statuses are used, and nothing is promoted without evidence:
 | Ownership / account scoping      | VERIFIED       | VERIFIED      | n/a            | VERIFIED       | EXTERNAL |
 | Risk enforcement                 | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
 | Paper ledger (append-only)       | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
-| Settlement (settle-once)         | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
+| Settlement (settle-once)         | VERIFIED       | VERIFIED      | n/a            | **VERIFIED**   | EXTERNAL |
 | Analytics                        | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
 | Rate limiting — logic            | VERIFIED       | n/a           | n/a            | VERIFIED       | EXTERNAL |
 | Rate limiting — shared budget    | n/a            | n/a           | **UNVERIFIED** | **VERIFIED**   | EXTERNAL |
 | Rate limiting — RESP client      | VERIFIED       | n/a           | **UNVERIFIED** | VERIFIED       | EXTERNAL |
-| Workers (isolation, lifecycle)   | VERIFIED       | VERIFIED      | n/a            | UNVERIFIED     | EXTERNAL |
-| Maintenance / session retention  | VERIFIED       | VERIFIED      | n/a            | UNVERIFIED     | EXTERNAL |
+| Workers (isolation, lifecycle)   | VERIFIED       | VERIFIED      | n/a            | **VERIFIED**   | EXTERNAL |
+| Maintenance / session retention  | VERIFIED       | VERIFIED      | n/a            | **VERIFIED**   | EXTERNAL |
 | Concurrency (locks, races)       | **impossible** | VERIFIED      | n/a            | n/a            | EXTERNAL |
 
 "n/a" means the dependency is not involved. "impossible" means the environment
@@ -116,11 +116,33 @@ one PostgreSQL 16, one shared counter.
   (fails closed), general traffic still served (fails open), readiness reports
   the counter unavailable, liveness stays 200.
 
-Workers were **not** exercised multi-instance. Their duplication safety rests on
-database constraints — argued in
-[ADR-0015](adr/0015-multi-instance-guarantees.md), verified as constraints under
-concurrency in the PostgreSQL 16 run, but not observed with two runtime
-processes competing. That distinction is deliberate.
+### Workers across two instances — VERIFIED
+
+`npm run verify:workers`: 9/9 checks. Two runtime processes, one PostgreSQL 16,
+both with settlement and maintenance enabled, racing over the same seeded work
+for 70 seconds. The verdict comes from the DATABASE, not from logs or exit
+codes.
+
+|                       |                                                            |
+| --------------------- | ---------------------------------------------------------- |
+| Settlement cycles run | **69 on each instance**, over the same 5 signals           |
+| Signals settled       | 5/5, **no signal received two outcomes**                   |
+| Positions released    | 5, **each exactly once**                                   |
+| Derived balance       | nets to **0** — duplicate work did not inflate the account |
+| Sessions              | all 6 expired rows swept; **the live session survived**    |
+| Worker failures       | 0 on both instances                                        |
+
+This is what turns ADR-0015 from an argument into a result: two instances
+duplicate work and corrupt nothing, so leader election remains an efficiency
+question rather than a correctness one.
+
+The script refuses to pass vacuously — its first check is that work was
+actually performed. That guard fired on the first run (0/5 settled, everything
+else trivially "passing") and revealed the seed was at fault: candles were
+offset from the minute boundary the settlement worker floors to, so no settling
+bar was found and every position correctly landed in `pending_settlement`.
+
+Still not exercised multi-instance: risk enforcement and ingestion.
 
 ## CI — EXTERNAL
 

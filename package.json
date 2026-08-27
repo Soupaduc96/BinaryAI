@@ -34,7 +34,8 @@
     "dev:db": "tsx scripts/dev-database.mts",
     "test:db": "vitest run tests/db",
     "verify:postgres": "node scripts/verify-postgres.mjs",
-    "verify:distributed": "node scripts/verify-distributed.mjs"
+    "verify:distributed": "node scripts/verify-distributed.mjs",
+    "verify:workers": "node scripts/verify-workers-multi-instance.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.7",
