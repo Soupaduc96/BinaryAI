@@ -116,16 +116,34 @@ function NavEntry({ item }: { item: NavItem }) {
     );
   }
 
+  /**
+   * An item with no destination.
+   *
+   * Two things were wrong here and both were invisible from the source:
+   *
+   *  - It carried `hover:bg-surface-2/50 hover:text-text-2`. A background that
+   *    lights up under the cursor is the strongest "click me" signal a rail
+   *    has, so the item advertised itself as navigation and then did nothing.
+   *    `cursor-not-allowed` arrives too late to undo that invitation.
+   *  - It carried `aria-disabled` on a bare `<span>`. That attribute only
+   *    applies to elements with a widget role, so a screen reader announced
+   *    the label with no hint that it leads nowhere — the sighted cue (dimmed
+   *    text) had no spoken equivalent.
+   *
+   * Now: no hover response at all, and the state is stated in text that
+   * assistive technology reads, which is the same information the dimming
+   * conveys visually.
+   */
   return (
     <li>
       <span
-        aria-disabled
         title={`${item.label} — not implemented yet`}
-        className={`${shared} cursor-not-allowed text-text-3 hover:bg-surface-2/50 hover:text-text-2`}
+        className={`${shared} cursor-default text-text-3/60`}
       >
-        <Glyph size={16} />
+        <Glyph size={16} className="opacity-60" />
         <span className="hidden truncate xl:inline">{item.label}</span>
         <span className="sr-only xl:hidden">{item.label}</span>
+        <span className="sr-only"> — not implemented yet</span>
       </span>
     </li>
   );
@@ -165,22 +183,35 @@ export function Sidebar({ integrity }: { integrity?: { label: string; tone: stri
 
       {/* Mobile strip */}
       <nav className="md:hidden">
-        <ul className="flex gap-1 overflow-x-auto px-3 py-2">
+        {/* `relative` is load-bearing, not decorative.
+            The items carry a `sr-only` span, which is `position: absolute`.
+            Absolute positioning resolves against the nearest POSITIONED
+            ancestor — with none, these resolved against the page and kept their
+            static x, roughly 1200px along this horizontally scrolling strip.
+            A 1px box sitting at x≈1280 still extends the document's scroll
+            width, so the whole page scrolled sideways at 390px even though the
+            strip itself was correctly clipped. Making this element the
+            containing block keeps them inside the scroller. */}
+        <ul className="relative flex gap-1 overflow-x-auto px-3 py-2">
           {GROUPS.flatMap((group) => group.items).map((item) => {
             const Glyph = item.icon;
             return (
               <li key={item.label}>
+                {/* Same reasoning as the rail above: no `aria-disabled` on a
+                    role-less span, and the unavailability is spoken rather than
+                    only dimmed. */}
                 <span
                   aria-current={item.active ? 'page' : undefined}
-                  aria-disabled={!item.active}
+                  title={item.active ? undefined : `${item.label} — not implemented yet`}
                   className={`flex items-center gap-2 rounded-[7px] px-3 py-1.5 text-[12px] whitespace-nowrap ${
                     item.active
                       ? 'bg-accent/10 font-medium text-text-1'
-                      : 'cursor-not-allowed text-text-3'
+                      : 'cursor-default text-text-3/60'
                   }`}
                 >
-                  <Glyph size={14} className={item.active ? 'text-accent' : ''} />
+                  <Glyph size={14} className={item.active ? 'text-accent' : 'opacity-60'} />
                   {item.label}
+                  {item.active ? null : <span className="sr-only"> — not implemented yet</span>}
                 </span>
               </li>
             );

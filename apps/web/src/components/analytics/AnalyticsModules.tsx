@@ -15,6 +15,7 @@ import {
   ModuleHeader,
   StatRow,
   Surface,
+  failureHeadline,
 } from '@/components/ui/primitives';
 
 /**
@@ -50,7 +51,7 @@ export function PerformanceModule({
         ) : (
           <div className="px-5 py-5">
             <Dormant
-              headline="Unavailable"
+              headline={failureHeadline(analytics)}
               detail={analytics.error}
               hint={
                 calibration.ok && !calibration.data.persistenceConfigured
@@ -140,7 +141,7 @@ export function BacktestingModule({ feed }: { feed: ApiResult<BacktestFeed> }) {
       <Surface aria-labelledby="backtest-heading" className="flex flex-col">
         <ModuleHeader label="Backtesting" id="backtest-heading" />
         <div className="px-5 py-5">
-          <Dormant headline="Unavailable" detail={feed.error} />
+          <Dormant headline={failureHeadline(feed)} detail={feed.error} />
         </div>
       </Surface>
     );
@@ -218,7 +219,7 @@ export function StrategyRegistryModule({
       <Surface aria-labelledby="strategies-heading" className="flex flex-col">
         <ModuleHeader label="Strategy Registry" id="strategies-heading" />
         <div className="px-5 py-5">
-          <Dormant headline="Unavailable" detail={strategies.error} />
+          <Dormant headline={failureHeadline(strategies)} detail={strategies.error} />
         </div>
       </Surface>
     );

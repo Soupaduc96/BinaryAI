@@ -77,7 +77,22 @@ export function defaultRules(tuning: RateLimitTuning): RateLimitRules {
       windowMs: tuning.generalWindowMs,
       onStoreFailure: 'fail_open',
     },
-    analytics: { limit: 30, windowMs: MINUTE, onStoreFailure: 'fail_open' },
+    /**
+     * Sized in PAGE RENDERS, not in raw requests.
+     *
+     * This was 30/minute, chosen by thinking about how often a person would
+     * ask for an aggregation. That reasoning was wrong, because the caller is
+     * not a person typing URLs — it is the dashboard, and one render of it
+     * fetches FOUR analytics endpoints (overview, calibration, strategies,
+     * regimes). Thirty therefore bought about seven page views a minute, and
+     * every timeframe click is a page view. Browser-testing the UI hit the
+     * limit within six navigations and the analytics panels went blank.
+     *
+     * 120 is 30 renders a minute, with headroom for a second tab. It still
+     * bounds the thing the limit exists to bound — a caller looping expensive
+     * aggregations — while no longer throttling the product's own normal use.
+     */
+    analytics: { limit: 120, windowMs: MINUTE, onStoreFailure: 'fail_open' },
     ingestion: { limit: 12, windowMs: MINUTE, onStoreFailure: 'fail_open' },
     paper_action: { limit: 30, windowMs: MINUTE, onStoreFailure: 'fail_open' },
   };

@@ -56,7 +56,19 @@ export const TIMEOUT_MS = 8000;
  * apart to describe either honestly.
  */
 export type ApiResult<T> =
-  { ok: true; data: T } | { ok: false; error: string; status?: number; unauthorized?: boolean };
+  | { ok: true; data: T }
+  | {
+      ok: false;
+      error: string;
+      status?: number;
+      unauthorized?: boolean;
+      /**
+       * The request was refused for asking too often, not because anything
+       * failed. Kept separate from `unauthorized` and from a generic error
+       * because the honest reading differs: this one resolves by waiting.
+       */
+      throttled?: boolean;
+    };
 
 async function getJson<T>(path: string): Promise<ApiResult<T>> {
   try {
@@ -71,10 +83,16 @@ async function getJson<T>(path: string): Promise<ApiResult<T>> {
         status: response.status,
         // 401 and 403 both mean "answered, but not for you".
         unauthorized: response.status === 401 || response.status === 403,
+        throttled: response.status === 429,
         error:
           response.status === 401
             ? `Not signed in (${path}).`
-            : `API responded ${response.status} for ${path}`,
+            : response.status === 429
+              ? // 429 is not a failure. Saying "API responded 429" invites the
+                // reader to conclude something is broken; it is a request-rate
+                // ceiling and it clears on its own.
+                'Request limit reached. This is a rate limit, not an error — the data returns shortly.'
+              : `API responded ${response.status} for ${path}`,
       };
     }
     return { ok: true, data: (await response.json()) as T };

@@ -1,6 +1,13 @@
 import type { PersistedSignal, SystemStatus } from '@binaryai/types';
 import type { ApiResult, PaperAccountFeed, RiskPolicyFeed, SimulationFeed } from '@/lib/api';
-import { Absent, Chip, Dormant, Locked, Surface } from '@/components/ui/primitives';
+import {
+  Absent,
+  Chip,
+  Dormant,
+  Locked,
+  Surface,
+  failureHeadline,
+} from '@/components/ui/primitives';
 import { TONE_DOT, TONE_TEXT, componentIndicator } from '@/lib/system-state';
 
 /**
@@ -84,7 +91,7 @@ export function RiskAssessmentModule({
           <Locked what="Risk limits are per account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={policy.error} />
+            <Dormant headline={failureHeadline(policy)} detail={policy.error} />
           </div>
         )}
       </Surface>
@@ -231,7 +238,7 @@ export function AccountOverviewModule({
           <Locked what="A paper account belongs to a signed-in user." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={account.error} />
+            <Dormant headline={failureHeadline(account)} detail={account.error} />
           </div>
         )}
       </Surface>

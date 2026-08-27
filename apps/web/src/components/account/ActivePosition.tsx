@@ -1,5 +1,12 @@
 import type { ApiResult, PaperPositionView, PositionsFeed } from '@/lib/api';
-import { Chip, Dormant, Locked, ModuleHeader, Surface } from '@/components/ui/primitives';
+import {
+  Chip,
+  Dormant,
+  Locked,
+  ModuleHeader,
+  Surface,
+  failureHeadline,
+} from '@/components/ui/primitives';
 
 /**
  * The paper position currently in force, as a first-class rail module.
@@ -51,7 +58,7 @@ export function ActivePositionModule({
           <Locked what="Positions are private to an account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>

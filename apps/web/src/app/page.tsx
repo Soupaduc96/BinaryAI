@@ -221,6 +221,11 @@ export default async function WorkspacePage({
                 series={series}
                 reason={candleReason}
                 instrument={instrument ?? undefined}
+                supportedTimeframes={
+                  marketData.ok
+                    ? (marketData.data.provider?.supportedTimeframes ?? undefined)
+                    : undefined
+                }
               />
             </div>
 

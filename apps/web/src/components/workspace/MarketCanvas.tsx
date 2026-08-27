@@ -1,4 +1,4 @@
-import type { CandleSeries } from '@binaryai/types';
+import type { CandleSeries, Timeframe } from '@binaryai/types';
 import { IconExpand, IconIndicator, IconLayers } from '@/components/ui/icons';
 import { Absent, Label } from '@/components/ui/primitives';
 import { CandleChart } from './CandleChart';
@@ -58,10 +58,13 @@ export function MarketCanvas({
   series,
   reason,
   instrument,
+  supportedTimeframes,
 }: {
   series: CandleSeries | null;
   reason?: string | undefined;
   instrument?: string | undefined;
+  /** From the provider's declared capabilities; undefined when none is configured. */
+  supportedTimeframes?: readonly Timeframe[] | undefined;
 }) {
   const candles = series?.candles ?? [];
   const hasData = candles.length > 0;
@@ -79,7 +82,7 @@ export function MarketCanvas({
           {instrument ?? 'Market'}
         </h2>
         <div className="max-w-full min-w-0 overflow-x-auto">
-          <TimeframeControl />
+          <TimeframeControl supported={supportedTimeframes} />
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           <ToolbarButton label="Indicators">

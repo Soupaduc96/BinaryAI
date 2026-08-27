@@ -14,6 +14,7 @@ import {
   Locked,
   ModuleHeader,
   Surface,
+  failureHeadline,
 } from '@/components/ui/primitives';
 
 /**
@@ -65,7 +66,7 @@ export function PaperAccountModule({ feed }: { feed: ApiResult<PaperAccountFeed>
           <Locked what="A paper account belongs to a signed-in user." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>
@@ -159,7 +160,7 @@ export function AccountRiskModule({
           <Locked what="Risk limits are per account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={policy.error} />
+            <Dormant headline={failureHeadline(policy)} detail={policy.error} />
           </div>
         )}
       </Surface>
@@ -268,7 +269,7 @@ export function PaperPositionsModule({ feed }: { feed: ApiResult<PositionsFeed> 
           <Locked what="Positions are private to an account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>

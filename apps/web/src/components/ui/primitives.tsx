@@ -261,6 +261,19 @@ export function Locked({
   );
 }
 
+/**
+ * Headline for a feed that did not load.
+ *
+ * A 429 is not an outage. Labelling it "Unavailable" alongside a genuine
+ * failure tells the reader the product is broken when in fact they simply
+ * asked too quickly and the panel will fill itself in shortly. The project's
+ * status rules already say 429 is not an error; this is that rule applied to
+ * the panel a user actually looks at.
+ */
+export function failureHeadline(result: { readonly throttled?: boolean }): string {
+  return result.throttled ? 'Rate limited' : 'Unavailable';
+}
+
 export function Dormant({
   headline,
   detail,

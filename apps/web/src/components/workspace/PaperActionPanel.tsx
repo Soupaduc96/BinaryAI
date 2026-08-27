@@ -304,10 +304,18 @@ export function PaperActionPanel({
             <label htmlFor="paper-size" className="telemetry-label">
               Position size
             </label>
+            {/* Bounds come from the account's own policy, which this panel
+                already holds in order to warn about an oversized action.
+                `min` was 0 and 0 is not a size the engine accepts, so the
+                control described a value the server would refuse; the smallest
+                step-aligned size is 0.5. `max` is a hint only — the stored
+                policy remains authoritative and is re-evaluated server-side on
+                every action, which is what `overSize` below reflects. */}
             <input
               id="paper-size"
               type="number"
-              min="0"
+              min="0.5"
+              {...(capacity ? { max: capacity.maxPositionSize } : {})}
               step="0.5"
               inputMode="decimal"
               value={size}

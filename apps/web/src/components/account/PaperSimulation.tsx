@@ -7,6 +7,7 @@ import {
   Locked,
   ModuleHeader,
   Surface,
+  failureHeadline,
 } from '@/components/ui/primitives';
 import { ModelSelect } from '@/components/account/ModelSelect';
 
@@ -65,7 +66,7 @@ export function PaperSimulationModule({
           <Locked what="A paper simulation is per account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>

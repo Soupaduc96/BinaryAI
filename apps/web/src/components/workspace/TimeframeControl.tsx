@@ -18,7 +18,18 @@ import { OFFERED_TIMEFRAMES, readTimeframe } from '@/lib/timeframe';
  * a separate question, answered honestly by the canvas when no candles exist.
  */
 
-export function TimeframeControl() {
+export function TimeframeControl({
+  /**
+   * Timeframes the configured provider actually serves.
+   *
+   * Undefined when no provider is configured — in that case nothing is
+   * disabled, because "we cannot serve this" and "we do not know what can be
+   * served" are different claims and only the first justifies a dead control.
+   */
+  supported,
+}: {
+  supported?: readonly Timeframe[] | undefined;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -45,19 +56,35 @@ export function TimeframeControl() {
     >
       {OFFERED_TIMEFRAMES.map((option) => {
         const selected = option === current;
+        // A timeframe the provider does not serve can never produce a candle.
+        // Leaving it clickable spends a user's attention on an empty chart and
+        // makes them wonder what they did wrong; the honest answer is that the
+        // data source has no such granularity, so the control says so and does
+        // not pretend to be a choice.
+        const servable = supported === undefined || supported.includes(option);
+
         return (
           <button
             key={option}
             type="button"
             onClick={() => select(option)}
+            disabled={!servable}
             aria-pressed={selected}
+            {...(servable
+              ? {}
+              : { title: `${option} — not served by the configured market-data provider` })}
             className={`tnum rounded-[5px] px-2.5 py-1 text-[12px] transition-colors ${
               selected
                 ? 'bg-surface-3 font-medium text-text-1'
-                : 'text-text-3 hover:bg-surface-3/60 hover:text-text-2'
+                : servable
+                  ? 'text-text-3 hover:bg-surface-3/60 hover:text-text-2'
+                  : 'cursor-not-allowed text-text-3/35'
             }`}
           >
             {option}
+            {servable ? null : (
+              <span className="sr-only"> — not served by the configured provider</span>
+            )}
           </button>
         );
       })}

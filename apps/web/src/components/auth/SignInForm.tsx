@@ -85,7 +85,7 @@ export function SignInForm({
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="h-10 rounded-[6px] border border-edge-strong bg-surface-2 px-3 text-[13px] text-text-1 outline-none transition-colors placeholder:text-text-3 focus:border-accent/50"
+          className="h-10 rounded-[6px] border border-edge-strong bg-surface-2 px-3 text-[13px] text-text-1 transition-colors placeholder:text-text-3 focus:border-accent/50"
           placeholder="you@example.com"
         />
       </label>
@@ -101,7 +101,7 @@ export function SignInForm({
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="h-10 rounded-[6px] border border-edge-strong bg-surface-2 px-3 text-[13px] text-text-1 outline-none transition-colors placeholder:text-text-3 focus:border-accent/50"
+          className="h-10 rounded-[6px] border border-edge-strong bg-surface-2 px-3 text-[13px] text-text-1 transition-colors placeholder:text-text-3 focus:border-accent/50"
           placeholder={mode === 'create' ? 'At least 12 characters' : '••••••••••••'}
         />
       </label>

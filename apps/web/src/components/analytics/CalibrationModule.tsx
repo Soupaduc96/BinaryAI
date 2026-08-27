@@ -8,6 +8,7 @@ import {
   ModuleHeader,
   StatRow,
   Surface,
+  failureHeadline,
 } from '@/components/ui/primitives';
 
 /**
@@ -57,7 +58,7 @@ export function CalibrationModule({ feed }: { feed: ApiResult<CalibrationFeed> }
           <Locked what="Calibration evidence is scoped to your account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline="Unavailable" detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>
@@ -219,7 +220,7 @@ export function ObservedBreakdown({
           <Locked what="Per-bucket evidence is scoped to your account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline="Unavailable" detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>

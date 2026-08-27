@@ -5,7 +5,7 @@ import type {
   PositionsFeed,
   SimulationFeed,
 } from '@/lib/api';
-import { Chip, Dormant, Locked, Surface } from '@/components/ui/primitives';
+import { Chip, Dormant, Locked, Surface, failureHeadline } from '@/components/ui/primitives';
 
 /**
  * Left-column account modules: the position record and the exposure ledger.
@@ -108,7 +108,7 @@ export function RecentPositionsModule({
           <Locked what="Positions are private to an account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={feed.error} />
+            <Dormant headline={failureHeadline(feed)} detail={feed.error} />
           </div>
         )}
       </Surface>
@@ -316,7 +316,7 @@ export function LedgerSummaryModule({ account }: { account: ApiResult<PaperAccou
           <Locked what="The ledger is per account." />
         ) : (
           <div className="px-5 py-5">
-            <Dormant headline={'Unavailable'} detail={account.error} />
+            <Dormant headline={failureHeadline(account)} detail={account.error} />
           </div>
         )}
       </Surface>
