@@ -202,11 +202,12 @@ Position creation runs inside one transaction holding `SELECT … FOR UPDATE` on
 the account row. Two concurrent requests for the same account serialize there,
 so the second one's count includes the first one's position.
 
-> **Not verified locally.** PGlite accepts one connection, so two genuinely
-> simultaneous transactions cannot be run. The unique index and the lock's
-> sequential behaviour (including full rollback on failure) are tested; a real
-> race needs the `postgres:16` CI job, which has never run because no git remote
-> is configured.
+> **Verified, but not by `npm test`.** PGlite accepts one connection, so two
+> genuinely simultaneous transactions cannot be run there. The real race is
+> exercised in `tests/db/postgres-only.test.ts`, which runs under
+> `npm run verify:postgres` against a real PostgreSQL 16 server and in the
+> `postgres:16-alpine` CI job — both of which now pass. Against PGlite those
+> cases **skip** rather than passing vacuously.
 
 ## Endpoints
 

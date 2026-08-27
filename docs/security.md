@@ -150,9 +150,9 @@ nothing in the code enforces HTTPS. `Strict-Transport-Security` and friends
 belong at the proxy.
 
 **Dependencies are not scanned automatically.** `npm audit` is not part of the
-CI workflow. The workflow itself now exists and is correct, but has never
-executed: the repository has no remote. See
-[verification.md](verification.md#ci--external).
+CI workflow. The workflow itself runs on every push and pull request and passes
+— see [verification.md](verification.md#ci--verified) — but adding a dependency
+scan to it is still outstanding.
 
 ## Rate limiting
 

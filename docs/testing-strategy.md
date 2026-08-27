@@ -159,18 +159,20 @@ A flaky test in this codebase means a real non-determinism bug, not a retry.
 Named rather than hidden:
 
 - **No E2E execution.** Playwright is scaffolded but not installed.
-- **PostgreSQL 16 has never actually run.** The CI job and the local script both
-  exist and are correct, but the repository has no commits and no remote, so
-  nothing has ever triggered the job. Every claim about 16 remains a claim about
-  what _would_ be verified.
+- **PostgreSQL 16 is not covered by `npm test`.** It needs
+  `npm run verify:postgres` locally, or the `postgres:16-alpine` CI job — both
+  of which pass. A green `npm test` alone still says nothing about 16.
 - **No coverage gate.** Coverage is not measured. A threshold is worth adding
   when the codebase stops changing shape weekly.
 - **No property-based testing.** `fast-check` over indicators would be a good
   addition — invariants like monotonicity and bounds are natural properties.
 - **No load testing.** Meaningless before a data provider exists.
-- **Concurrency tests exist but have never executed.** `tests/db/postgres-only.test.ts`
+- **Concurrency tests do not run under `npm test`.** `tests/db/postgres-only.test.ts`
   races two real connections on paper-action idempotency, settlement-once and
-  `SELECT FOR UPDATE`. It skips on PGlite, which is every run so far.
-- **Redis has never been reached.** The RESP client is tested against a real TCP
-  socket and the store against a deterministic fake, but no test has spoken to a
+  `SELECT FOR UPDATE`. It **skips** on PGlite rather than passing vacuously, and
+  executes under `verify:postgres` and in CI.
+- **Redis is not covered by `npm test`.** `npm run verify:redis` reaches a real
+  Redis (3.0.504; Redis 7 remains unverified). Under `npm test` the client is
+  exercised against a real TCP socket and the store against a deterministic fake,
+  but no test in that suite has spoken to a
   Redis server.

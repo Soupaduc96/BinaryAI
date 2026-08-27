@@ -210,7 +210,8 @@ Architecture recorded in [ADR-0009](adr/0009-in-process-workers.md).
 
 **Still open, carried forward**
 
-- PostgreSQL 16 CI has still never run — no commits, no remote.
+- ~~PostgreSQL 16 CI has still never run — no commits, no remote.~~ Closed in
+  Phase 7: the remote was added and the job passed.
 - A calibration model (Phase 4 carry-over; sample volume is the gate).
 - Fees, slippage and spread are not modelled, so a simulated figure is
   optimistic relative to any real analogue.
@@ -230,8 +231,8 @@ Architecture recorded in [ADR-0009](adr/0009-in-process-workers.md).
 - Runtime status reports the sweep, and distinguishes "never run" (`null`) from
   "ran and removed nothing" (`0`).
 - **CI trigger fixed.** The workflow watched `main` while the repository sits on
-  `master`, so a push would never have triggered it — which is part of why the
-  PostgreSQL 16 job has never executed.
+  `master`, so a push would never have triggered it — which was part of why the
+  PostgreSQL 16 job had not executed at that point.
 
 ---
 
@@ -282,19 +283,19 @@ Architecture recorded in [ADR-0009](adr/0009-in-process-workers.md).
 
 **Still open**
 
-- **PostgreSQL 16 CI has still never run.** The workflow is correct, the script
-  is correct, and `postgres:16-alpine` is defined — but the repository has **no
-  commits and no remote**, so nothing has ever triggered it. This remains the
-  single largest outstanding verification gap, and it is external: it needs a
-  remote, not more code.
-- **Redis has never been reached.** The client, the store and the fail-closed
-  policy are implemented and tested — the client against a real TCP socket, the
-  store against a deterministic fake. No Redis server was reachable from this
-  environment, so distributed behaviour under real concurrency, failover and
-  cluster redirection are **unverified**. Implemented ≠ verified.
-- **Workers are uncoordinated across instances.** Duplicated work, not
-  incorrect work — every write they end in is protected by a database
-  constraint. Leader election is deliberately not built; see ADR-0015.
+- ~~PostgreSQL 16 CI has never run.~~ **Closed.** The remote was added, `master`
+  pushed, and GitHub Actions run #1 passed both jobs including
+  `verify:postgres` against `postgres:16-alpine`. See
+  [verification.md](verification.md#ci--verified).
+- ~~Redis has never been reached.~~ **Closed at 3.0**, still open at 7.
+  `verify:redis` (17/17) and `verify:distributed` (18/18) now run against a real
+  Redis server. The available server is 3.0.504, so post-3.0 features —
+  `protected-mode`, ACLs, TLS, cluster redirection, failover — remain
+  unverified.
+- **Workers are uncoordinated across instances** — and that is now measured
+  rather than argued: `verify:workers` runs two runtime processes over the same
+  work and confirms duplicated effort with zero corruption (9/9). Leader
+  election stays deliberately unbuilt; see ADR-0015.
 - Calibration model remains unimplemented, by intent.
 
 ---
@@ -341,11 +342,11 @@ The phase that turned claims into evidence. See
   (separate commercial software) there. Set `REDIS_URL` on Linux or macOS, or
   `docker compose up -d`, and the same verification runs unchanged. The RESP
   client and the shared-budget behaviour are verified; Redis-the-product is not.
-- **CI — EXTERNAL.** The workflow is correct and runs the same command as local
-  verification, but the repository has **no remote**, so it has never executed.
-  Creating one needs account access that does not exist in this environment.
-- **Workers multi-instance — UNVERIFIED.** Their duplication safety rests on
-  database constraints, which the PostgreSQL 16 run does verify under
+- ~~**CI — EXTERNAL.**~~ Closed in Phase 7: the remote was configured, `master`
+  pushed, and both jobs passed on the first run.
+- ~~**Workers multi-instance — UNVERIFIED.**~~ Closed in Phase 7 by
+  `verify:workers`. Their duplication safety rests on
+  database constraints, which the PostgreSQL 16 run verifies under
   concurrency — but two competing runtime processes were not observed.
 - Calibration remains unimplemented, by intent.
 

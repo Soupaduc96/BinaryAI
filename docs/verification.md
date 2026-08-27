@@ -26,25 +26,25 @@ Four statuses are used, and nothing is promoted without evidence:
 | PostgreSQL 16  | yes            | `npm run verify:postgres` — real 16.14 server over TCP, pooled, from the official binaries. |
 | Multi-instance | yes            | `npm run verify:distributed` — two API processes, one database, one shared counter.         |
 | Redis          | yes            | `npm run verify:redis` — real Redis **3.0.504**. See the version caveat below.              |
-| CI             | **no**         | Repository has no remote. See below.                                                        |
+| CI             | yes            | GitHub Actions on every push and pull request. See below.                                   |
 
 ## Matrix
 
-| Capability                       | Local          | PostgreSQL 16 | Redis        | Multi-instance | CI       |
-| -------------------------------- | -------------- | ------------- | ------------ | -------------- | -------- |
-| Auth (Argon2id, lockout, decoy)  | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | EXTERNAL |
-| Sessions (issue, expiry, revoke) | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | EXTERNAL |
-| Ownership / account scoping      | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | EXTERNAL |
-| Risk enforcement                 | VERIFIED       | VERIFIED      | n/a          | not exercised  | EXTERNAL |
-| Paper ledger (append-only)       | VERIFIED       | VERIFIED      | n/a          | not exercised  | EXTERNAL |
-| Settlement (settle-once)         | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | EXTERNAL |
-| Analytics                        | VERIFIED       | VERIFIED      | n/a          | not exercised  | EXTERNAL |
-| Rate limiting — logic            | VERIFIED       | n/a           | n/a          | VERIFIED       | EXTERNAL |
-| Rate limiting — shared budget    | n/a            | n/a           | **VERIFIED** | **VERIFIED**   | EXTERNAL |
-| Rate limiting — RESP client      | VERIFIED       | n/a           | **VERIFIED** | VERIFIED       | EXTERNAL |
-| Workers (isolation, lifecycle)   | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | EXTERNAL |
-| Maintenance / session retention  | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | EXTERNAL |
-| Concurrency (locks, races)       | **impossible** | VERIFIED      | n/a          | n/a            | EXTERNAL |
+| Capability                       | Local          | PostgreSQL 16 | Redis        | Multi-instance | CI        |
+| -------------------------------- | -------------- | ------------- | ------------ | -------------- | --------- |
+| Auth (Argon2id, lockout, decoy)  | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | VERIFIED  |
+| Sessions (issue, expiry, revoke) | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | VERIFIED  |
+| Ownership / account scoping      | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | VERIFIED  |
+| Risk enforcement                 | VERIFIED       | VERIFIED      | n/a          | not exercised  | VERIFIED  |
+| Paper ledger (append-only)       | VERIFIED       | VERIFIED      | n/a          | not exercised  | VERIFIED  |
+| Settlement (settle-once)         | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | VERIFIED  |
+| Analytics                        | VERIFIED       | VERIFIED      | n/a          | not exercised  | VERIFIED  |
+| Rate limiting — logic            | VERIFIED       | n/a           | n/a          | VERIFIED       | VERIFIED  |
+| Rate limiting — shared budget    | n/a            | n/a           | **VERIFIED** | **VERIFIED**   | not in CI |
+| Rate limiting — RESP client      | VERIFIED       | n/a           | **VERIFIED** | VERIFIED       | not in CI |
+| Workers (isolation, lifecycle)   | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | VERIFIED  |
+| Maintenance / session retention  | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | VERIFIED  |
+| Concurrency (locks, races)       | **impossible** | VERIFIED      | n/a          | n/a            | VERIFIED  |
 
 "n/a" means the dependency is not involved. "impossible" means the environment
 cannot express the test — PGlite has one connection, so there is no second
@@ -70,9 +70,11 @@ run here and nowhere else:
 - concurrent mutation of a published simulation model → both refused
 - append-only triggers hold from a second connection
 
-**Not** the same build as CI. CI runs `postgres:16-alpine` (musl Linux); this is
-the platform's own build of 16.x. Same source, same major version, same planner
-and constraint semantics — but a different build, so CI remains authoritative.
+**Not** the same build as CI. The local server is the platform's own build of
+16.x; CI runs `postgres:16-alpine` (musl Linux). Same source, same major
+version, same planner and constraint semantics — but a different build, so CI
+is authoritative. **CI has now run and passed**, so that authoritative result
+exists rather than being pending.
 
 ## Redis — VERIFIED (against 3.0.504, with a version caveat)
 
@@ -162,54 +164,43 @@ bar was found and every position correctly landed in `pending_settlement`.
 
 Still not exercised multi-instance: risk enforcement and ingestion.
 
-## CI — EXTERNAL
+## CI — VERIFIED
 
-The workflow is correct, triggers on `push` to `main`/`master` and on every pull
-request, and defines a real `postgres:16-alpine` service running the same
-`npm run verify:postgres` command used locally.
+GitHub Actions has run, on a real push, and both jobs passed.
 
-**It has never executed.** The repository has no configured Git remote, so
-nothing has ever triggered it. This requires someone with the account to create
-a repository and add the remote; it cannot be done from inside this environment,
-and inventing a URL would be worse than the gap:
+|            |                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------------------------- |
+| Repository | `Soupaduc96/BinaryAI` (public)                                                                       |
+| Run        | [#1](https://github.com/Soupaduc96/BinaryAI/actions/runs/33087798089), event `push`, branch `master` |
+| Commit     | `4eecd54`                                                                                            |
+| Duration   | 15:26:15Z → 15:28:12Z                                                                                |
+| Conclusion | **success**                                                                                          |
 
-```bash
-git remote add origin <REAL_REPOSITORY_URL>
-git push -u origin master
-```
+**Verify (no server)** — every step `success`: checkout, setup-node, `npm ci`,
+format check, lint, typecheck, test, build.
 
-### What HAS been done about it
+**Database (PostgreSQL 16)** — every step `success`: containers initialized,
+checkout, setup-node, `npm ci`, and `npm run verify:postgres` against the
+`postgres:16-alpine` service.
 
-CI cannot be run, but its steps can — and were, against a clean clone of the
-committed tree rather than against a developer's working directory, because
-only a fresh checkout shows what CI actually gets:
+That last step is the authoritative one. It exits non-zero if the server is not
+16.x, if any migration fails from an empty database, if re-running the migrator
+is not a no-op, or if any test in `tests/db` or `tests/integration` fails — so
+its `success` is the evidence that all of those held on the deployment target,
+on musl Linux, over a real connection.
 
-| CI step                                           | Simulated locally                        | Result                                            |
-| ------------------------------------------------- | ---------------------------------------- | ------------------------------------------------- |
-| `npm ci`                                          | clean clone, no `node_modules`           | exit 0 — lockfile is complete and installable     |
-| `npm run format:check`                            | same clone                               | exit 0 (**after** the `.gitattributes` fix below) |
-| `npm run lint`                                    | same clone                               | exit 0                                            |
-| `npm run typecheck`                               | same clone                               | exit 0                                            |
-| `npm test`                                        | same clone                               | 1166 passed, 11 skipped, 66 files                 |
-| `npm run build`                                   | same clone                               | exit 0                                            |
-| `npm run verify:postgres` with `DATABASE_URL` set | real PostgreSQL 16 as a stand-in service | see below                                         |
+A caveat on precision: the raw job log requires admin rights on the repository
+to download, so the step counts quoted elsewhere in this document come from
+running the same script locally, not from reading CI's output. What CI
+establishes is the pass/fail, which is the part that was missing. The log is
+readable by anyone with repository access at the run URL above.
 
-The workflow file was also checked structurally: every `run:` command resolves
-to a script that exists, the push trigger includes `master` (the actual default
-branch), `pull_request` is present, actions are pinned to `@v4`, and the
-lockfile contains the **linux-x64** `embedded-postgres` binaries CI will need —
-without which `npm ci` on `ubuntu-latest` would fail at the first step.
+### What CI does NOT cover
 
-**One real CI-adjacent defect was found this way.** `.gitattributes` was
-missing, so `core.autocrlf=true` (the Windows default) checked out CRLF while
-Prettier is configured `endOfLine: "lf"` — the first `npm run verify` after a
-clone failed on 350 files nobody had edited. Linux CI was never affected, but
-every Windows contributor would have been. Fixed by `* text=auto eol=lf`, and
-confirmed by re-cloning with `autocrlf=true` and watching `format:check` pass.
-
-None of this is a substitute for the job running. It is the difference between
-"the workflow looks right" and "every command in it has been executed against
-the committed tree".
+`verify:redis`, `verify:distributed` and `verify:workers` are **not** in the
+workflow. They need a Redis service and multiple long-lived processes, and
+adding them is a deliberate future decision rather than an oversight — the
+matrix marks those cells "not in CI" rather than implying coverage.
 
 ## Intentionally unimplemented
 

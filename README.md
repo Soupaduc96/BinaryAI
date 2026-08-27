@@ -1,5 +1,7 @@
 # BinaryAI
 
+[![CI](https://github.com/Soupaduc96/BinaryAI/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Soupaduc96/BinaryAI/actions/workflows/ci.yml)
+
 An analysis and decision-support platform for binary-options markets.
 
 BinaryAI reads market data, analyses it, produces a candidate signal, scores its
