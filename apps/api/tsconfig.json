@@ -1,0 +1,47 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist"],
+  "references": [
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../packages/utils"
+    },
+    {
+      "path": "../../packages/config"
+    },
+    {
+      "path": "../../packages/analytics"
+    },
+    {
+      "path": "../../packages/database"
+    },
+    {
+      "path": "../../packages/strategies"
+    },
+    {
+      "path": "../../packages/engine"
+    },
+    {
+      "path": "../../packages/market-data"
+    },
+    {
+      "path": "../../packages/runtime"
+    },
+    {
+      "path": "../../packages/backtest"
+    },
+    {
+      "path": "../../packages/rate-limit"
+    }
+  ]
+}

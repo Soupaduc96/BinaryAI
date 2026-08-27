@@ -1,0 +1,53 @@
+{
+  "name": "binaryai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI-powered binary-options market analysis and decision-support platform.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build:packages && npm run build:api && npm run build:web",
+    "build:packages": "tsc -b tsconfig.build.json",
+    "build:api": "npm run build --workspace @binaryai/api",
+    "build:web": "npm run build --workspace @binaryai/web",
+    "typecheck": "npm run build:packages && tsc -p tsconfig.test.json && npm run typecheck --workspace @binaryai/web",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:api": "npm run dev --workspace @binaryai/api",
+    "dev:web": "npm run dev --workspace @binaryai/web",
+    "backtest:demo": "npm run build:packages && node scripts/run-backtest.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "clean": "node scripts/clean.mjs",
+    "db:migrate": "npm run build:packages && node scripts/db-migrate.mjs",
+    "db:status": "npm run build:packages && node scripts/db-migrate.mjs --status",
+    "dev:db": "tsx scripts/dev-database.mts",
+    "test:db": "vitest run tests/db",
+    "verify:postgres": "node scripts/verify-postgres.mjs",
+    "verify:distributed": "node scripts/verify-distributed.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.7",
+    "@electric-sql/pglite-socket": "^0.2.10",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.3.0",
+    "embedded-postgres": "16.14.0-beta.17",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.12",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
+  }
+}

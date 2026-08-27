@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [{ "path": "tsconfig.build.json" }, { "path": "apps/web" }]
+}

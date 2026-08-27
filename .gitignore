@@ -1,0 +1,45 @@
+# dependencies
+node_modules/
+.npm/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+.next/
+out/
+
+# environment / secrets  (NEVER commit real credentials)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# test / coverage
+coverage/
+.vitest/
+test-results/
+playwright-report/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# editors / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# python (services/ai reference implementation)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Scratch space for local verification runs: the PGlite bridge's data
+# directory, captured logs and screenshots. Never part of the product.
+.tmp/

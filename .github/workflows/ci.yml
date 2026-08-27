@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    # Both names: the repository was initialised on `master`, and a workflow
+    # that only watches `main` would never run on push -- which is exactly how
+    # a CI job ends up never having executed.
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # Format, lint, typecheck, build and the tests that need no server. These run
+  # against the embedded PostgreSQL (PGlite), which is what a developer gets
+  # locally, so a green local run means a green job here.
+  verify:
+    name: Verify (no server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  # The authoritative database run: the SAME suite against a real PostgreSQL 16
+  # server.
+  #
+  # This is not a redundant second run of the tests above. PGlite proves the SQL
+  # is valid PostgreSQL, but PGlite 0.5 embeds PostgreSQL *18* -- newer than the
+  # version deployed -- so anything added after 16 passes locally and fails on
+  # the server. It is also one embedded engine on one connection, which makes
+  # row locking, unique-constraint races and pooling untestable there. Those are
+  # exactly the guarantees paper-action idempotency and settle-once depend on.
+  #
+  # tests/db/postgres-only.test.ts holds the cases that SKIP without a server;
+  # this job is the only place they execute.
+  database:
+    name: Database (PostgreSQL 16)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: binaryai
+          POSTGRES_PASSWORD: binaryai
+          POSTGRES_DB: binaryai_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U binaryai -d binaryai_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://binaryai:binaryai@localhost:5432/binaryai_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      # One script, so the local command and the CI command cannot drift.
+      #
+      # It asserts the server version before running anything: without that
+      # check a PostgreSQL 14 answering on 5432 would produce a green job that
+      # gets reported as a PostgreSQL 16 verification. It then migrates from
+      # zero, re-runs the migrator to prove idempotency, and runs the database
+      # and integration suites against the server.
+      #
+      # Exit 2 means no server was reachable -- an infrastructure problem rather
+      # than a test failure. It still fails the job; the distinction is for
+      # whoever reads the log.
+      - name: Verify against PostgreSQL 16
+        run: npm run verify:postgres

@@ -1,0 +1,23 @@
+-- BinaryAI :: the simulated-return ledger entry type
+--
+-- Like 0006, this migration does ONE thing for a PostgreSQL reason rather than
+-- a design one: a new enum value cannot be USED in the transaction that adds
+-- it ("unsafe use of new value"), and the migration runner wraps each file in
+-- its own transaction. The constraints that admit this value live in 0009.
+--
+-- WHY A NEW VALUE RATHER THAN REUSING 'simulated_payout':
+--
+--   'simulated_payout' entries were written under the superseded per-account
+--   assumption model, where the ACCOUNT HOLDER supplied a rate directly. Those
+--   entries are historical fact and must stay readable exactly as they were
+--   recorded, so they keep their own type.
+--
+--   'simulated_return' entries are produced by a SERVER-DEFINED, VERSIONED
+--   simulation model and always carry the model and version that produced
+--   them. Distinguishing the two in the type itself means no reader has to
+--   infer which accounting regime an entry belongs to -- the row says so.
+--
+-- The name also matters. "Payout" implies a counterparty paying out. There is
+-- no counterparty. "Return" belongs to the simulation model that computed it.
+
+ALTER TYPE ledger_entry_type ADD VALUE IF NOT EXISTS 'simulated_return';

@@ -1,0 +1,50 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/types"
+    },
+    {
+      "path": "packages/utils"
+    },
+    {
+      "path": "packages/fixtures"
+    },
+    {
+      "path": "packages/config"
+    },
+    {
+      "path": "packages/indicators"
+    },
+    {
+      "path": "packages/strategies"
+    },
+    {
+      "path": "packages/engine"
+    },
+    {
+      "path": "packages/backtest"
+    },
+    {
+      "path": "packages/market-data"
+    },
+    {
+      "path": "packages/auth"
+    },
+    {
+      "path": "packages/analytics"
+    },
+    {
+      "path": "packages/rate-limit"
+    },
+    {
+      "path": "packages/database"
+    },
+    {
+      "path": "packages/runtime"
+    },
+    {
+      "path": "apps/api"
+    }
+  ]
+}

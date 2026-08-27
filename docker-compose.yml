@@ -1,0 +1,57 @@
+# Local development dependencies only.
+#
+# This file starts PostgreSQL and Redis for development. It does NOT build or
+# run BinaryAI itself -- the API and the dashboard run from the workspace with
+# `npm run dev:api` / `npm run dev:web`, which keeps the feedback loop fast.
+# Application images are a deployment concern and come later.
+#
+#   docker compose up -d
+#   npm run db:migrate
+#
+# The postgres service is pinned to 16 to match .github/workflows/ci.yml. That
+# pin is load-bearing: the local test engine (PGlite) is PostgreSQL 18, so this
+# container is the only way to check 16 compatibility without waiting for CI.
+# Run `npm run verify:postgres` against it -- see docs/testing-strategy.md.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: binaryai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: binaryai
+      # Local development only. Never reuse this anywhere that matters.
+      POSTGRES_PASSWORD: binaryai
+      POSTGRES_DB: binaryai
+    ports:
+      - '5432:5432'
+    volumes:
+      - binaryai_pgdata:/var/lib/postgresql/data
+      # Creates binaryai_test alongside binaryai, so verification runs never
+      # truncate the database a developer is working in. Runs only when the
+      # volume is first created.
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U binaryai -d binaryai']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: binaryai-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - binaryai_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  binaryai_pgdata:
+  binaryai_redisdata:

@@ -1,0 +1,11 @@
+-- A separate database for verification runs.
+--
+-- `npm run verify:postgres` truncates tables between tests, so it must not be
+-- pointed at the database a developer is using. Two databases in one server
+-- keeps that separation without a second container.
+--
+-- Init scripts run ONLY when the data volume is created. On an existing volume,
+-- create it by hand:
+--
+--   docker exec binaryai-postgres createdb -U binaryai binaryai_test
+CREATE DATABASE binaryai_test OWNER binaryai;

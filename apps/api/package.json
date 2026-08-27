@@ -1,0 +1,30 @@
+{
+  "name": "@binaryai/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@binaryai/analytics": "^0.1.0",
+    "@binaryai/backtest": "0.1.0",
+    "@binaryai/config": "0.1.0",
+    "@binaryai/database": "0.1.0",
+    "@binaryai/engine": "0.1.0",
+    "@binaryai/market-data": "0.1.0",
+    "@binaryai/rate-limit": "0.1.0",
+    "@binaryai/runtime": "0.1.0",
+    "@binaryai/strategies": "0.1.0",
+    "@binaryai/types": "0.1.0",
+    "@binaryai/utils": "0.1.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "fastify": "^5.12.1",
+    "zod": "^4.4.3"
+  }
+}
