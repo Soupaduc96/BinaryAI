@@ -131,7 +131,45 @@ request, and defines a real `postgres:16-alpine` service running the same
 **It has never executed.** The repository has no configured Git remote, so
 nothing has ever triggered it. This requires someone with the account to create
 a repository and add the remote; it cannot be done from inside this environment,
-and inventing a URL would be worse than the gap.
+and inventing a URL would be worse than the gap:
+
+```bash
+git remote add origin <REAL_REPOSITORY_URL>
+git push -u origin master
+```
+
+### What HAS been done about it
+
+CI cannot be run, but its steps can — and were, against a clean clone of the
+committed tree rather than against a developer's working directory, because
+only a fresh checkout shows what CI actually gets:
+
+| CI step                                           | Simulated locally                        | Result                                            |
+| ------------------------------------------------- | ---------------------------------------- | ------------------------------------------------- |
+| `npm ci`                                          | clean clone, no `node_modules`           | exit 0 — lockfile is complete and installable     |
+| `npm run format:check`                            | same clone                               | exit 0 (**after** the `.gitattributes` fix below) |
+| `npm run lint`                                    | same clone                               | exit 0                                            |
+| `npm run typecheck`                               | same clone                               | exit 0                                            |
+| `npm test`                                        | same clone                               | 1166 passed, 11 skipped, 66 files                 |
+| `npm run build`                                   | same clone                               | exit 0                                            |
+| `npm run verify:postgres` with `DATABASE_URL` set | real PostgreSQL 16 as a stand-in service | see below                                         |
+
+The workflow file was also checked structurally: every `run:` command resolves
+to a script that exists, the push trigger includes `master` (the actual default
+branch), `pull_request` is present, actions are pinned to `@v4`, and the
+lockfile contains the **linux-x64** `embedded-postgres` binaries CI will need —
+without which `npm ci` on `ubuntu-latest` would fail at the first step.
+
+**One real CI-adjacent defect was found this way.** `.gitattributes` was
+missing, so `core.autocrlf=true` (the Windows default) checked out CRLF while
+Prettier is configured `endOfLine: "lf"` — the first `npm run verify` after a
+clone failed on 350 files nobody had edited. Linux CI was never affected, but
+every Windows contributor would have been. Fixed by `* text=auto eol=lf`, and
+confirmed by re-cloning with `autocrlf=true` and watching `format:check` pass.
+
+None of this is a substitute for the job running. It is the difference between
+"the workflow looks right" and "every command in it has been executed against
+the committed tree".
 
 ## Intentionally unimplemented
 
