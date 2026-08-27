@@ -1,0 +1,23 @@
+# Line endings are LF in the repository and LF in the working tree, on every
+# platform.
+#
+# Without this, `core.autocrlf=true` -- the Windows default -- converts text
+# files to CRLF on checkout. Prettier is configured `endOfLine: "lf"`, so the
+# very first `npm run verify` after a clone fails on hundreds of files that
+# nobody edited. That is a miserable first experience and it teaches people to
+# distrust the checks, which is worse than the whitespace.
+#
+# `eol=lf` overrides autocrlf, so behaviour no longer depends on each
+# developer's git configuration. Verified by cloning this repository on Windows
+# with autocrlf=true and running `npm run format:check`.
+* text=auto eol=lf
+
+# Binary: never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary

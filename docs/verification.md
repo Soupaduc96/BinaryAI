@@ -78,12 +78,21 @@ and constraint semantics — but a different build, so CI remains authoritative.
 
 No test in this repository has ever spoken to a Redis server.
 
-Redis has no supported native Windows build. `redis-memory-server` compiles
-Redis from source on Linux and macOS but delegates to **Memurai**, separate
-commercial software, on Windows. This is an external prerequisite, not a code
-gap: set `REDIS_URL` on any Linux or macOS machine, or `docker compose up -d`
-(the compose file already defines `redis:7-alpine`), and the existing
-verification runs against it unchanged.
+Redis has no supported native Windows build, and every avenue was checked
+rather than assumed:
+
+| Avenue                                                        | Result                                                                                                          |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `redis-server` on PATH                                        | not installed                                                                                                   |
+| Docker / Podman                                               | not installed                                                                                                   |
+| WSL                                                           | `wsl.exe` present but **WSL is not installed**; installing needs admin and a reboot                             |
+| `redis-memory-server` (npm)                                   | compiles Redis from source on Linux/macOS; on Windows it delegates to **Memurai**, separate commercial software |
+| `redis-server` (npm)                                          | only _starts and stops_ a binary you already have — ships none                                                  |
+| `redis-windows`, `@redis/redis-server`, `valkey-server` (npm) | do not exist                                                                                                    |
+
+This is an external prerequisite, not a code gap: set `REDIS_URL` on any Linux
+or macOS machine, or `docker compose up -d` (the compose file already defines
+`redis:7-alpine`), and the existing verification runs against it unchanged.
 
 **What is verified without Redis** — the RESP client against real TCP sockets
 (encoding, parsing, in-order matching under pipelining, partial frames,
