@@ -93,7 +93,7 @@ export const envSchema = z.object({
 
   // Sessions. AUTH_JWT_SECRET is deliberately absent: BinaryAI uses opaque
   // server-side sessions so that logout and account suspension take effect
-  // immediately. See docs/adr/0010-session-strategy.md.
+  // immediately. See docs/adr/0010-opaque-server-sessions.md.
   AUTH_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(8_760).default(168),
   AUTH_COOKIE_NAME: z.string().min(1).max(64).default('binaryai_session'),
   // Defaults to true; only an explicit opt-out allows a cookie over plain HTTP,

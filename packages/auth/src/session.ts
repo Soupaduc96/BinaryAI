@@ -17,7 +17,7 @@ import type { Session, SessionResolution, User } from '@binaryai/types';
  *    class of bug to be exposed to.
  *
  * The cost is a database read per request, which is a single indexed lookup on
- * a primary-key-sized column. See docs/adr/0010-session-strategy.md.
+ * a primary-key-sized column. See docs/adr/0010-opaque-server-sessions.md.
  */
 
 /** 32 bytes = 256 bits of entropy. Guessing is not a viable attack. */

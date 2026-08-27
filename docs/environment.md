@@ -94,7 +94,7 @@ is visible.
 There is **no `AUTH_JWT_SECRET`**. BinaryAI uses opaque server-side sessions so
 that logout and suspension take effect on the next request; a stateless JWT
 cannot be revoked before it expires. See
-[ADR-0010](adr/0010-session-strategy.md).
+[ADR-0010](adr/0010-opaque-server-sessions.md).
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
