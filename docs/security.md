@@ -111,10 +111,13 @@ sentence in this document that described _all_ signals as per-user.
 Stated plainly, because a security section that only lists strengths is
 misleading.
 
-**Redis itself has never been reached.** The shared-budget behaviour IS verified
-across two real API processes (see "Rate limiting" below), but the counter used
-was a four-command RESP stand-in, not Redis. Redis has no supported native
-Windows build, which makes this an external prerequisite rather than a code gap.
+**Redis is verified against 3.0.504, not against a modern Redis.** The client,
+store, limiter and the two-instance shared budget all pass against a real Redis
+server (`npm run verify:redis`, `REDIS_URL=… npm run verify:distributed`). The
+server available on this platform is Microsoft's archived 3.0.504 port, so
+anything introduced after Redis 3.0 -- `protected-mode`, ACLs, TLS, cluster
+redirection, failover -- remains unverified. Run the same scripts against the
+`redis:7-alpine` service in `docker-compose.yml` to close that.
 
 **No secret rotation.** No key-management integration. `AUTH_API_KEY` is static.
 
@@ -230,12 +233,18 @@ and readiness reports the counter unavailable while liveness stays 200.
 matching under pipelining, partial-frame reassembly across packet boundaries,
 connection-drop rejection, AUTH/SELECT ordering — against real TCP sockets.
 
-**NOT verified — Redis itself.** No test in this repository has ever spoken to a
-Redis server. The shared counter used above is `scripts/resp-server.mjs`, which
-implements four RESP commands and is explicitly not Redis. Unverified therefore:
-real Redis semantics beyond those four commands, persistence, eviction under
-memory pressure, replication, failover, cluster redirection (MOVED/ASK), ACLs
-and TLS.
+**Verified — against a real Redis server.** `npm run verify:redis` exercises the
+client, store and limiter against Redis itself: 17/17. `REDIS_URL=… npm run
+verify:distributed` then runs the two-instance shared-budget proof with that
+Redis as the counter: 18/18. This matters because the unit tests use a fake and
+the distributed run can use a stand-in, both written alongside the client — an
+independent implementation is what rules out a shared misreading of the
+protocol.
+
+**NOT verified — a modern Redis.** The server is 3.0.504, the only genuine Redis
+obtainable on this platform. The four commands used have had stable semantics
+since 2.6, so the protocol evidence holds; but `protected-mode`, ACLs, TLS,
+cluster redirection (MOVED/ASK), failover and modern eviction are untested.
 
 **Why:** Redis has no supported native Windows build. `redis-memory-server`
 compiles Redis from source on Linux and macOS but delegates to **Memurai** —

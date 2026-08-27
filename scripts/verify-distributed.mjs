@@ -32,9 +32,32 @@ import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { startPostgres16 } from './postgres16.mjs';
 
-const RESP_PORT = 6399;
+/**
+ * The shared counter.
+ *
+ * Set REDIS_URL to point at a real Redis and this script uses it, which is what
+ * turns the result from "the distributed property works" into "the distributed
+ * property works against Redis". Without it, a local RESP stand-in is started
+ * instead -- adequate for the property, explicitly not evidence about Redis.
+ */
+const EXTERNAL_REDIS_URL = process.env.REDIS_URL;
+const RESP_PORT = Number(process.env.RESP_PORT ?? 6390);
+const counterUrl = EXTERNAL_REDIS_URL ?? `redis://127.0.0.1:${RESP_PORT}`;
+const counterPort = Number(new URL(counterUrl).port || 6379);
+const counterHost = new URL(counterUrl).hostname;
 const PORT_A = 4101;
 const PORT_B = 4102;
+/**
+ * The API instances talk to the counter through a loopback proxy rather than
+ * directly.
+ *
+ * The outage section needs the counter to become unreachable. With the local
+ * stand-in that meant killing its process, which is impossible -- and
+ * unacceptable -- when REDIS_URL points at a Redis somebody else owns. Killing
+ * a proxy severs the connection identically from the API's point of view and
+ * leaves the real server untouched.
+ */
+const PROXY_PORT = 6391;
 
 const checks = [];
 let failures = 0;
@@ -131,9 +154,50 @@ await new Promise((resolve, reject) => {
 });
 process.stdout.write('  migrations applied from zero\n');
 
-section('Starting the shared counter (RESP stand-in — NOT Redis)');
-spawnNode('resp', ['scripts/resp-server.mjs', '--port', String(RESP_PORT)], {});
-await sleep(800);
+if (EXTERNAL_REDIS_URL) {
+  section('Using the shared counter at REDIS_URL (external server)');
+  process.stdout.write(`  ${counterHost}:${counterPort}
+`);
+} else {
+  section('Starting the shared counter (RESP stand-in — NOT Redis)');
+  spawnNode('resp', ['scripts/resp-server.mjs', '--port', String(RESP_PORT)], {});
+  await sleep(800);
+}
+
+/** Forwards loopback:PROXY_PORT to the counter, until closed. */
+function startCounterProxy() {
+  const sockets = new Set();
+  const server = net.createServer((inbound) => {
+    sockets.add(inbound);
+    const outbound = net.connect(counterPort, counterHost);
+    sockets.add(outbound);
+    inbound.pipe(outbound);
+    outbound.pipe(inbound);
+    const drop = () => {
+      sockets.delete(inbound);
+      sockets.delete(outbound);
+      inbound.destroy();
+      outbound.destroy();
+    };
+    inbound.on('error', drop);
+    outbound.on('error', drop);
+    inbound.on('close', drop);
+    outbound.on('close', drop);
+  });
+  server.listen(PROXY_PORT, '127.0.0.1');
+  return {
+    // Severs every live connection and stops accepting new ones, which is what
+    // a counter going away looks like from the API side.
+    sever() {
+      server.close();
+      for (const socket of sockets) socket.destroy();
+      sockets.clear();
+    },
+  };
+}
+
+const proxy = startCounterProxy();
+await sleep(300);
 
 const apiEnv = {
   NODE_ENV: 'development',
@@ -146,7 +210,7 @@ const apiEnv = {
   DATABASE_URL: postgres.url,
   DATABASE_MAX_CONNECTIONS: '5',
   RATE_LIMIT_STORE: 'redis',
-  REDIS_URL: `redis://127.0.0.1:${RESP_PORT}`,
+  REDIS_URL: `redis://127.0.0.1:${PROXY_PORT}`,
   RATE_LIMIT_MAX_REQUESTS: '10',
   RATE_LIMIT_WINDOW_MS: '60000',
   MAINTENANCE_WORKER_ENABLED: 'false',
@@ -277,8 +341,7 @@ try {
   // ------------------------------------------------------- failure modes --
 
   section('§10 Counter unreachable — credential traffic must fail CLOSED');
-  const resp = children.find((entry) => entry.label === 'resp');
-  resp.child.kill();
+  proxy.sever();
   await sleep(700);
 
   const loginWhileDown = await call(PORT_A, '/v1/auth/login', {
@@ -328,6 +391,7 @@ try {
     `status ${statusUnauth.status}`,
   );
 } finally {
+  proxy.sever();
   await stopAll();
   await postgres.stop();
 }
@@ -336,7 +400,7 @@ try {
 async function flushCounter() {
   await new Promise((resolve) => {
     const socket = new net.Socket();
-    socket.connect(RESP_PORT, '127.0.0.1', () => {
+    socket.connect(counterPort, counterHost, () => {
       socket.write('*1\r\n$8\r\nFLUSHALL\r\n');
       // `setTimeout` is imported from node:timers/promises as `sleep`, so the
       // global callback form is not in scope in this module.

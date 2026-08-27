@@ -25,26 +25,26 @@ Four statuses are used, and nothing is promoted without evidence:
 | Unit / PGlite  | yes            | `npm test` — 1166 tests. PGlite is real PostgreSQL **18**, embedded, **one connection**.    |
 | PostgreSQL 16  | yes            | `npm run verify:postgres` — real 16.14 server over TCP, pooled, from the official binaries. |
 | Multi-instance | yes            | `npm run verify:distributed` — two API processes, one database, one shared counter.         |
-| Redis          | **no**         | No supported native Windows build. See below.                                               |
+| Redis          | yes            | `npm run verify:redis` — real Redis **3.0.504**. See the version caveat below.              |
 | CI             | **no**         | Repository has no remote. See below.                                                        |
 
 ## Matrix
 
-| Capability                       | Local          | PostgreSQL 16 | Redis          | Multi-instance | CI       |
-| -------------------------------- | -------------- | ------------- | -------------- | -------------- | -------- |
-| Auth (Argon2id, lockout, decoy)  | VERIFIED       | VERIFIED      | n/a            | VERIFIED       | EXTERNAL |
-| Sessions (issue, expiry, revoke) | VERIFIED       | VERIFIED      | n/a            | VERIFIED       | EXTERNAL |
-| Ownership / account scoping      | VERIFIED       | VERIFIED      | n/a            | VERIFIED       | EXTERNAL |
-| Risk enforcement                 | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
-| Paper ledger (append-only)       | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
-| Settlement (settle-once)         | VERIFIED       | VERIFIED      | n/a            | **VERIFIED**   | EXTERNAL |
-| Analytics                        | VERIFIED       | VERIFIED      | n/a            | not exercised  | EXTERNAL |
-| Rate limiting — logic            | VERIFIED       | n/a           | n/a            | VERIFIED       | EXTERNAL |
-| Rate limiting — shared budget    | n/a            | n/a           | **UNVERIFIED** | **VERIFIED**   | EXTERNAL |
-| Rate limiting — RESP client      | VERIFIED       | n/a           | **UNVERIFIED** | VERIFIED       | EXTERNAL |
-| Workers (isolation, lifecycle)   | VERIFIED       | VERIFIED      | n/a            | **VERIFIED**   | EXTERNAL |
-| Maintenance / session retention  | VERIFIED       | VERIFIED      | n/a            | **VERIFIED**   | EXTERNAL |
-| Concurrency (locks, races)       | **impossible** | VERIFIED      | n/a            | n/a            | EXTERNAL |
+| Capability                       | Local          | PostgreSQL 16 | Redis        | Multi-instance | CI       |
+| -------------------------------- | -------------- | ------------- | ------------ | -------------- | -------- |
+| Auth (Argon2id, lockout, decoy)  | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | EXTERNAL |
+| Sessions (issue, expiry, revoke) | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | EXTERNAL |
+| Ownership / account scoping      | VERIFIED       | VERIFIED      | n/a          | VERIFIED       | EXTERNAL |
+| Risk enforcement                 | VERIFIED       | VERIFIED      | n/a          | not exercised  | EXTERNAL |
+| Paper ledger (append-only)       | VERIFIED       | VERIFIED      | n/a          | not exercised  | EXTERNAL |
+| Settlement (settle-once)         | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | EXTERNAL |
+| Analytics                        | VERIFIED       | VERIFIED      | n/a          | not exercised  | EXTERNAL |
+| Rate limiting — logic            | VERIFIED       | n/a           | n/a          | VERIFIED       | EXTERNAL |
+| Rate limiting — shared budget    | n/a            | n/a           | **VERIFIED** | **VERIFIED**   | EXTERNAL |
+| Rate limiting — RESP client      | VERIFIED       | n/a           | **VERIFIED** | VERIFIED       | EXTERNAL |
+| Workers (isolation, lifecycle)   | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | EXTERNAL |
+| Maintenance / session retention  | VERIFIED       | VERIFIED      | n/a          | **VERIFIED**   | EXTERNAL |
+| Concurrency (locks, races)       | **impossible** | VERIFIED      | n/a          | n/a            | EXTERNAL |
 
 "n/a" means the dependency is not involved. "impossible" means the environment
 cannot express the test — PGlite has one connection, so there is no second
@@ -74,34 +74,52 @@ run here and nowhere else:
 the platform's own build of 16.x. Same source, same major version, same planner
 and constraint semantics — but a different build, so CI remains authoritative.
 
-## Redis — EXTERNAL
+## Redis — VERIFIED (against 3.0.504, with a version caveat)
 
-No test in this repository has ever spoken to a Redis server.
+`npm run verify:redis`: **17/17** against a real Redis server, and
+`REDIS_URL=… npm run verify:distributed`: **18/18** with two API instances
+sharing that Redis as their counter.
 
-Redis has no supported native Windows build, and every avenue was checked
-rather than assumed:
+Why a separate check when the unit tests already cover the client: those run
+against `createFakeRedis`, and the distributed run can use a RESP stand-in.
+Both were written by the same hand as the client they exercise, so a shared
+misreading of the protocol would pass both. An independent server
+implementation is the only thing that rules that out — and it did:
 
-| Avenue                                                        | Result                                                                                                          |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `redis-server` on PATH                                        | not installed                                                                                                   |
-| Docker / Podman                                               | not installed                                                                                                   |
-| WSL                                                           | `wsl.exe` present but **WSL is not installed**; installing needs admin and a reboot                             |
-| `redis-memory-server` (npm)                                   | compiles Redis from source on Linux/macOS; on Windows it delegates to **Memurai**, separate commercial software |
-| `redis-server` (npm)                                          | only _starts and stops_ a binary you already have — ships none                                                  |
-| `redis-windows`, `@redis/redis-server`, `valkey-server` (npm) | do not exist                                                                                                    |
+| Verified against real Redis |                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Protocol                    | PING, INCR, PEXPIRE, PTTL — including `-1` for no expiry and `-2` for a missing key                    |
+| Pipelining                  | three concurrent INCRs, replies matched to commands in order                                           |
+| Window                      | opens once, does **not** slide forward on each hit, and genuinely expires                              |
+| Limiter                     | allows to the limit then refuses; reports the store shared, available, zero failures                   |
+| Two instances               | one combined budget of 10 — A served 6, B served 4 then refused                                        |
+| Counter outage              | credential traffic 503 `rate_limiter_unavailable`; general traffic served; readiness 503; liveness 200 |
 
-This is an external prerequisite, not a code gap: set `REDIS_URL` on any Linux
-or macOS machine, or `docker compose up -d` (the compose file already defines
-`redis:7-alpine`), and the existing verification runs against it unchanged.
+### The version caveat, stated plainly
 
-**What is verified without Redis** — the RESP client against real TCP sockets
-(encoding, parsing, in-order matching under pipelining, partial frames,
-connection drops, AUTH/SELECT ordering), and the _distributed property itself_
-across two real processes, using `scripts/resp-server.mjs` — four RESP commands
-in its own process, explicitly **not Redis**.
+The server is **Redis 3.0.504**, Microsoft's archived Windows port — the only
+genuine Redis obtainable on this machine (see the ruled-out list below). It is
+real Redis, and the four commands this client sends have had stable semantics
+since Redis 2.6, so the protocol evidence is sound.
 
-**What remains unverified** — real Redis semantics beyond those four commands,
-persistence, eviction, replication, failover, cluster redirection, ACLs, TLS.
+It is **not** the Redis a deployment would run. Unverified therefore: anything
+introduced after 3.0, `protected-mode`, ACLs (Redis 6+), TLS (Redis 6+),
+cluster redirection, failover, and modern eviction behaviour. `docker-compose.yml`
+defines `redis:7-alpine`; running `verify:redis` and `verify:distributed`
+against that is what would close the remaining gap, and both scripts take
+`REDIS_URL` for exactly that reason.
+
+### Avenues checked before installing anything
+
+| Avenue                                                        | Result                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `redis-server` on PATH                                        | not installed                                                                                          |
+| Docker / Podman                                               | not installed                                                                                          |
+| WSL                                                           | `wsl.exe` present but **WSL is not installed**; installing needs admin and a reboot                    |
+| `redis-memory-server` (npm)                                   | compiles from source on Linux/macOS; on Windows delegates to **Memurai**, separate commercial software |
+| `redis-server` (npm)                                          | only _starts and stops_ a binary you already have — ships none                                         |
+| `redis-windows`, `@redis/redis-server`, `valkey-server` (npm) | do not exist                                                                                           |
+| `winget install Redis.Redis`                                  | **worked** — Redis 3.0.504, installed with the operator's explicit approval                            |
 
 ## Multi-instance — VERIFIED
 

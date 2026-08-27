@@ -149,6 +149,18 @@ The API refuses to start with `RATE_LIMIT_STORE=redis` and no `REDIS_URL`.
 Leaving both unset is fine for development: counters live in process, which is
 correct for one instance.
 
+To check the Redis path itself:
+
+```bash
+REDIS_URL=redis://127.0.0.1:6379 npm run verify:redis        # client, store, limiter
+REDIS_URL=redis://127.0.0.1:6379 npm run verify:distributed  # two instances, one budget
+```
+
+Both exit 2 rather than 1 when no server answers, so "no Redis here" stays
+distinguishable from "Redis behaved wrongly". Without `REDIS_URL`,
+`verify:distributed` falls back to a local RESP stand-in that is **not Redis**
+and is labelled as such in its output.
+
 Or put `DATABASE_URL` in `.env` and let Node read it:
 
 ```bash
