@@ -167,6 +167,69 @@ describe('CSRF applies to every state-changing route, not just logout', () => {
   });
 });
 
+// ------------------------------------------------------------------ CORS --
+
+describe('CORS allows every verb the API actually serves', () => {
+  /**
+   * The defect this exists to prevent.
+   *
+   * `PUT /v1/accounts/:id/simulation` is a real route, but PUT was missing from
+   * the CORS method list. A browser preflights any PUT carrying a JSON content
+   * type, the preflight was refused, and the dashboard's "Apply" for the
+   * simulation model died with a bare "Failed to fetch" — a feature that had
+   * never once worked from a browser.
+   *
+   * Nothing caught it, because every test and every curl reached the API
+   * directly. Only a real browser sends a preflight, so only a browser could
+   * see it. This test closes that gap without needing one: it derives the verbs
+   * from the routes themselves, so a future route with a new verb fails here
+   * rather than in someone's console.
+   */
+  it('advertises every method the route table uses', async () => {
+    const routes = app.printRoutes({ commonPrefix: false });
+    const served = new Set(
+      [...routes.matchAll(/\((?<methods>[A-Z, ]+)\)/g)]
+        .flatMap((match) => (match.groups?.['methods'] ?? '').split(','))
+        .map((method) => method.trim())
+        .filter((method) => method.length > 0 && method !== 'HEAD' && method !== 'OPTIONS'),
+    );
+
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/v1/accounts/me/simulation',
+      headers: {
+        origin: 'http://localhost:3000',
+        'access-control-request-method': 'PUT',
+      },
+    });
+    const allowed = new Set(
+      (preflight.headers['access-control-allow-methods'] ?? '')
+        .toString()
+        .split(',')
+        .map((method) => method.trim()),
+    );
+
+    const missing = [...served].filter((method) => !allowed.has(method));
+    expect(missing).toEqual([]);
+  });
+
+  it('does not refuse the preflight for the simulation PUT', async () => {
+    // The exact request the browser makes before the dashboard's Apply.
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/v1/accounts/me/simulation',
+      headers: {
+        origin: 'http://localhost:3000',
+        'access-control-request-method': 'PUT',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+
+    expect(preflight.statusCode).toBeLessThan(300);
+    expect(preflight.headers['access-control-allow-methods']).toContain('PUT');
+  });
+});
+
 // -------------------------------------------------------------- sessions --
 
 describe('an expired session', () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/shell/Sidebar';
+import { ActiveSection } from '@/components/shell/ActiveSection';
 import { TopBar } from '@/components/shell/TopBar';
 import { fetchAssets, fetchAuthContext, fetchSystemStatus } from '@/lib/api';
 import { marketDataIndicator } from '@/lib/system-state';
@@ -53,6 +54,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
           <div className="flex flex-1 flex-col md:flex-row">
             <Sidebar integrity={integrity} />
+            {/* Highlights whichever section the reader is looking at. */}
+            <ActiveSection />
 
             <main id="workspace" className="min-w-0 flex-1">
               {children}

@@ -44,7 +44,16 @@ export async function registerSecurity(app: FastifyInstance, context: AppContext
     // production -- but a dev instance could still set it, so it is filtered
     // here rather than trusted.
     origin: allowedOrigins.length > 0 ? allowedOrigins : false,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    // PUT belongs here: `PUT /v1/accounts/:id/simulation` is the only PUT the
+    // API serves, and omitting it meant the browser's preflight for that route
+    // was refused. The dashboard's "Apply" for the simulation model therefore
+    // failed with a bare "Failed to fetch" and the selection was never saved —
+    // a whole feature that had never worked from a browser, while curl (which
+    // sends no preflight) worked perfectly and hid it.
+    //
+    // Kept as an explicit list rather than a wildcard so adding a verb stays a
+    // deliberate act.
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
 

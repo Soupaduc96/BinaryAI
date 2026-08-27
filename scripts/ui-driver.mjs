@@ -124,14 +124,21 @@ export async function launchBrowser({ port = 9331, width = 1440, height = 1000 }
      *
      * `awaitPromise` plus `returnByValue` means a test can await something in
      * the page and get a plain JS value back, which keeps assertions readable.
+     *
+     * `userGesture` matters for anything gated on transient activation --
+     * Fullscreen, clipboard, autoplay. A scripted `.click()` does not count as
+     * a user action, so `requestFullscreen()` rejects and the control looks
+     * broken when it is not. Passing the flag makes the call indistinguishable
+     * from a real click as far as those APIs are concerned.
      */
-    async evaluate(expression) {
+    async evaluate(expression, { userGesture = false } = {}) {
       const result = await send('Runtime.evaluate', {
         // async, so a probe can `await fetch(...)` in the page. `awaitPromise`
         // below then resolves the returned promise before handing back a value.
         expression: `(async () => { ${expression} })()`,
         returnByValue: true,
         awaitPromise: true,
+        userGesture,
       });
       if (result.result?.exceptionDetails) {
         throw new Error(

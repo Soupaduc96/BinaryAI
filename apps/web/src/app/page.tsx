@@ -22,6 +22,7 @@ import { MarketContextStrip } from '@/components/workspace/MarketContextStrip';
 import { SignalIntelligence } from '@/components/workspace/SignalIntelligence';
 import { PaperActionPanel } from '@/components/workspace/PaperActionPanel';
 import { readTimeframe } from '@/lib/timeframe';
+import { computeIndicatorLines, readIndicators, readOverlays } from '@/lib/chart-overlays';
 import {
   fetchAnalyticsOverview,
   fetchAuthContext,
@@ -137,6 +138,30 @@ export default async function WorkspacePage({
   // there is nothing to fetch and nothing to invent.
   let detail: PersistedSignal | null = null;
   const latest = signals.ok ? signals.data.signals[0] : undefined;
+
+  // Chart overlays. Selection comes from the URL, the values come from the
+  // candles already fetched above — no second request and no separate source,
+  // so a line can never disagree with the bars beneath it.
+  const selectedIndicators = readIndicators(params['ind']);
+  const selectedOverlays = readOverlays(params['ov']);
+  const indicatorLines = computeIndicatorLines(series?.candles ?? [], selectedIndicators);
+  // Markers are drawn only for signals recorded on THIS instrument and
+  // timeframe; a decision made on another series is not a mark on this one.
+  const signalMarkers =
+    selectedOverlays.includes('signals') && signals.ok
+      ? signals.data.signals
+          .filter(
+            (signal) =>
+              signal.timeframe === timeframe &&
+              (instrument === null || signal.assetSymbol === instrument) &&
+              (signal.direction === 'call' || signal.direction === 'put'),
+          )
+          .map((signal) => ({
+            at: signal.decidedAt,
+            direction: signal.direction as 'call' | 'put',
+            status: signal.status,
+          }))
+      : [];
   if (latest) {
     const result = await fetchSignalDetail(latest.id);
     if (result.ok) detail = result.data;
@@ -216,7 +241,10 @@ export default async function WorkspacePage({
             {/* order-2 below lg: on a phone the decision leads, because that is
                 what the app is opened to read. The chart follows it, and the
                 action follows the chart. From lg the source order returns. */}
-            <div className="order-2 flex min-w-0 flex-col lg:order-none">
+            <div
+              id="section-chart"
+              className="order-2 flex min-w-0 flex-col scroll-mt-24 lg:order-none"
+            >
               <MarketCanvas
                 series={series}
                 reason={candleReason}
@@ -226,6 +254,9 @@ export default async function WorkspacePage({
                     ? (marketData.data.provider?.supportedTimeframes ?? undefined)
                     : undefined
                 }
+                indicatorLines={indicatorLines}
+                markers={signalMarkers}
+                showLastPrice={selectedOverlays.includes('last')}
               />
             </div>
 
@@ -240,10 +271,11 @@ export default async function WorkspacePage({
               uses the width and nothing is held open.
             */}
             <div
+              id="section-decision"
               className={
                 riskLocked
-                  ? 'order-1 flex flex-col gap-5 lg:order-none'
-                  : 'order-1 grid grid-cols-1 items-start gap-5 lg:order-none lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]'
+                  ? 'order-1 flex scroll-mt-24 flex-col gap-5 lg:order-none'
+                  : 'order-1 grid scroll-mt-24 grid-cols-1 items-start gap-5 lg:order-none lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]'
               }
             >
               <DecisionPanel feed={signals} detail={detail} />
@@ -253,7 +285,10 @@ export default async function WorkspacePage({
             {/* Signal -> Risk -> ACTION. Its own full-width region, so the step
                 from intelligence to a recorded action is visible as a step
                 rather than buried at the bottom of the decision panel. */}
-            <div className="order-3 flex min-w-0 flex-col lg:order-none [&>*]:flex-1">
+            <div
+              id="section-action"
+              className="order-3 flex min-w-0 scroll-mt-24 flex-col lg:order-none [&>*]:flex-1"
+            >
               <PaperActionPanel
                 signalId={signalId}
                 signedIn={signedIn}
@@ -275,7 +310,11 @@ export default async function WorkspacePage({
           </div>
 
           {/* ================================================== right rail == */}
-          <aside aria-label="Account state" className="flex min-w-0 flex-col gap-5">
+          <aside
+            id="section-rail"
+            aria-label="Account state"
+            className="flex min-w-0 flex-col gap-5"
+          >
             <AccountOverviewModule
               account={paperAccount}
               policy={riskPolicy}
@@ -290,9 +329,14 @@ export default async function WorkspacePage({
         {/* Full width below the fold: the analysis matrix and the signal record
             are wide tables, and the simulation module is tall. None of them
             gains anything from being squeezed beside the rail. */}
-        <AnalysisMatrix detail={detail} />
+        <div id="section-analysis" className="scroll-mt-24">
+          <AnalysisMatrix detail={detail} />
+        </div>
 
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <div
+          id="section-signals"
+          className="grid scroll-mt-24 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]"
+        >
           <SignalIntelligence feed={signals} positions={positions} />
           <PaperSimulationModule feed={simulated} catalogue={simulationModels} />
         </div>
@@ -300,20 +344,28 @@ export default async function WorkspacePage({
         {/* Account accounting, below the live workspace. Separate from observed
             outcomes because one is what this user did and the other is what the
             analysis achieved. */}
-        <section aria-labelledby="paper-heading-section" className="flex flex-col gap-3 pt-1">
+        <section
+          aria-labelledby="paper-heading-section"
+          className="flex scroll-mt-24 flex-col gap-3 pt-1"
+        >
           <h2 id="paper-heading-section" className="eyebrow px-1">
             Paper account
           </h2>
           <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
             <PaperAccountModule feed={paperAccount} />
             <AccountRiskModule policy={riskPolicy} account={paperAccount} events={riskEvents} />
-            <LedgerSummaryModule account={paperAccount} />
+            <div id="section-ledger" className="scroll-mt-24">
+              <LedgerSummaryModule account={paperAccount} />
+            </div>
           </div>
         </section>
 
         {/* Observed outcomes: measured accuracy over signals, with no payout
             applied. Kept apart from the account section above. */}
-        <section aria-labelledby="analytics-heading" className="flex flex-col gap-3 pt-1">
+        <section
+          aria-labelledby="analytics-heading"
+          className="flex scroll-mt-24 flex-col gap-3 pt-1"
+        >
           <h2 id="analytics-heading" className="eyebrow px-1">
             Observed outcomes
           </h2>
@@ -339,7 +391,7 @@ export default async function WorkspacePage({
         </section>
 
         {/* Infrastructure, deliberately last and full width. */}
-        <section aria-labelledby="system-heading" className="flex flex-col gap-3 pt-1">
+        <section aria-labelledby="system-heading" className="flex scroll-mt-24 flex-col gap-3 pt-1">
           <h2 id="system-heading" className="eyebrow px-1">
             System
           </h2>
@@ -348,7 +400,10 @@ export default async function WorkspacePage({
 
         {/* Simulation, under its own heading. A backtest is not an observed
             outcome and must never sit in a grid that implies it is. */}
-        <section aria-labelledby="simulation-heading" className="flex flex-col gap-3 pt-1">
+        <section
+          aria-labelledby="simulation-heading"
+          className="flex scroll-mt-24 flex-col gap-3 pt-1"
+        >
           <h2 id="simulation-heading" className="eyebrow px-1">
             Historical simulation
           </h2>

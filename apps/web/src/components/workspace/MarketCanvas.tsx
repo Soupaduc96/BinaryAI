@@ -1,7 +1,8 @@
 import type { CandleSeries, Timeframe } from '@binaryai/types';
-import { IconExpand, IconIndicator, IconLayers } from '@/components/ui/icons';
 import { Absent, Label } from '@/components/ui/primitives';
-import { CandleChart } from './CandleChart';
+import type { IndicatorLine } from '@/lib/chart-overlays';
+import { CandleChart, type SignalMarker } from './CandleChart';
+import { ChartTools } from './ChartTools';
 import { TimeframeControl } from './TimeframeControl';
 
 /**
@@ -15,20 +16,6 @@ import { TimeframeControl } from './TimeframeControl';
  * What is drawn comes from stored, validated candles. What is never drawn: a
  * synthesised series, an interpolated gap, or a bar the quality scan rejected.
  */
-
-function ToolbarButton({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title={`${label} — available in a later phase`}
-      aria-label={`${label} — available in a later phase`}
-      className="flex h-7 items-center gap-1.5 rounded-md border border-edge px-2 text-[12px] text-text-3 transition-colors hover:border-edge-strong disabled:cursor-not-allowed"
-    >
-      {children}
-    </button>
-  );
-}
 
 /** Unlabelled tick gutter, used only in the dormant state. */
 function EmptyPriceAxis() {
@@ -59,12 +46,20 @@ export function MarketCanvas({
   reason,
   instrument,
   supportedTimeframes,
+  indicatorLines = [],
+  markers = [],
+  showLastPrice = false,
 }: {
   series: CandleSeries | null;
   reason?: string | undefined;
   instrument?: string | undefined;
   /** From the provider's declared capabilities; undefined when none is configured. */
   supportedTimeframes?: readonly Timeframe[] | undefined;
+  /** Computed server-side from the stored candles. */
+  indicatorLines?: readonly IndicatorLine[];
+  /** Real recorded signals falling inside the drawn window. */
+  markers?: readonly SignalMarker[];
+  showLastPrice?: boolean;
 }) {
   const candles = series?.candles ?? [];
   const hasData = candles.length > 0;
@@ -73,8 +68,12 @@ export function MarketCanvas({
 
   return (
     <section
+      id="market-canvas"
       aria-labelledby="market-canvas-heading"
-      className="flex flex-1 flex-col overflow-hidden rounded-[10px] border border-edge bg-surface-1"
+      // bg on the section itself, not only the page: in fullscreen this element
+      // is the entire viewport and would otherwise sit on the browser's default
+      // black with no surface treatment.
+      className="flex flex-1 flex-col overflow-hidden rounded-[10px] border border-edge bg-surface-1 fullscreen:rounded-none"
     >
       {/* Chart toolbar */}
       <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-2.5">
@@ -84,25 +83,21 @@ export function MarketCanvas({
         <div className="max-w-full min-w-0 overflow-x-auto">
           <TimeframeControl supported={supportedTimeframes} />
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          <ToolbarButton label="Indicators">
-            <IconIndicator size={14} />
-            <span className="hidden sm:inline">Indicators</span>
-          </ToolbarButton>
-          <ToolbarButton label="Overlays">
-            <IconLayers size={14} />
-            <span className="hidden sm:inline">Overlays</span>
-          </ToolbarButton>
-          <ToolbarButton label="Fullscreen">
-            <IconExpand size={14} />
-          </ToolbarButton>
+        <div className="ml-auto">
+          <ChartTools targetId="market-canvas" />
         </div>
       </div>
 
       <div className="flex min-h-[360px] flex-1 lg:min-h-[440px]">
         <div className="relative flex min-w-0 flex-1 flex-col">
           {hasData ? (
-            <CandleChart candles={candles} timeframe={series?.timeframe ?? '1m'} />
+            <CandleChart
+              candles={candles}
+              timeframe={series?.timeframe ?? '1m'}
+              indicatorLines={indicatorLines}
+              markers={markers}
+              showLastPrice={showLastPrice}
+            />
           ) : (
             <>
               <div aria-hidden className="chart-grid absolute inset-0" />

@@ -1,16 +1,10 @@
 import Link from 'next/link';
+import { SettingsPanel } from '@/components/shell/SettingsPanel';
+import { StatusMenu } from '@/components/shell/StatusMenu';
 import type { SystemStatus } from '@binaryai/types';
 import type { ApiResult, AuthContext } from '@/lib/api';
 import { AccountMenu } from '@/components/auth/AccountMenu';
-import { IconSettings } from '@/components/ui/icons';
-import {
-  TONE_DOT,
-  TONE_TEXT,
-  apiIndicator,
-  marketDataIndicator,
-  marketIndicator,
-  type Indicator,
-} from '@/lib/system-state';
+import { apiIndicator, marketDataIndicator, marketIndicator } from '@/lib/system-state';
 
 /**
  * Command bar.
@@ -23,32 +17,6 @@ import {
  * slot stays empty unless a real current candle exists: a number here is read
  * as "the market, now", and there is no honest way to show one we do not have.
  */
-
-/**
- * A system indicator.
- *
- * Set on its own surface with a hairline, so a row of them reads as a bank of
- * deliberate instrument states rather than as coloured words floating in the
- * bar. The dot carries the state; the label stays dim so the VALUE is what the
- * eye lands on.
- */
-function StatePill({ label, indicator }: { label: string; indicator: Indicator }) {
-  return (
-    <span
-      className="hidden items-center gap-2 whitespace-nowrap lg:inline-flex"
-      title={indicator.detail}
-    >
-      <span
-        aria-hidden
-        className={`h-[5px] w-[5px] shrink-0 rounded-full ${TONE_DOT[indicator.tone]}`}
-      />
-      <span className="text-[9.5px] tracking-[0.14em] text-text-3 uppercase">{label}</span>
-      <span className={`tnum text-[10.5px] font-medium ${TONE_TEXT[indicator.tone]}`}>
-        {indicator.value}
-      </span>
-    </span>
-  );
-}
 
 /** A labelled slot in the bar. Renders an em dash when there is nothing real. */
 function Slot({
@@ -136,11 +104,14 @@ export function TopBar({
         {/* Operating state */}
         <div className="ml-auto flex shrink-0 items-center gap-3 lg:gap-4">
           {/* One instrument cluster rather than four separate chips. */}
-          <span className="hidden items-center divide-x divide-edge rounded-[7px] border border-edge bg-surface-1/60 lg:flex [&>*]:px-3 [&>*]:py-[7px]">
-            <StatePill label="API" indicator={api} />
-            <StatePill label="Data" indicator={data} />
-            <StatePill label="Market" indicator={market} />
-          </span>
+          <StatusMenu
+            pills={[
+              { label: 'API', indicator: api },
+              { label: 'Data', indicator: data },
+              { label: 'Market', indicator: market },
+            ]}
+            components={status.ok ? status.data.components : []}
+          />
 
           {/* The demo boundary is a permanent product state, so it is given the
               weight of a control rather than the weight of a footnote. */}
@@ -169,15 +140,7 @@ export function TopBar({
             )
           ) : null}
 
-          <button
-            type="button"
-            disabled
-            title="Settings — not implemented yet"
-            aria-label="Settings — not implemented yet"
-            className="flex h-8 w-8 shrink-0 cursor-not-allowed items-center justify-center rounded-[6px] border border-edge text-text-3"
-          >
-            <IconSettings size={15} />
-          </button>
+          <SettingsPanel signedIn={Boolean(auth.ok && auth.data.user)} />
         </div>
       </div>
     </header>

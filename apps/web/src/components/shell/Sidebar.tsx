@@ -18,24 +18,31 @@ import {
 /**
  * Terminal navigation rail.
  *
- * Responsive without client state, which is why it is a server component:
+ * Responsive without client state for layout:
  *   ≥1280px  full rail with group headings
  *   768px+   icon rail, labels via accessible name
  *   <768px   horizontal strip under the command bar
  *
- * The honesty rule here is unusual for navigation but matters: **an item that
- * leads nowhere is rendered as disabled, never as a link.** Most of this
- * product's surface is one workspace; shipping a rail full of plausible links
- * that silently do nothing would be the clearest possible example of a control
- * that looks functional and is not. Each carries a title saying so.
+ * **Every item is a real link to a section that exists.** They were previously
+ * inert spans carrying "not implemented yet", which was truthful and useless:
+ * thirteen things that look like navigation and refuse to navigate is a defect
+ * however carefully it is labelled.
+ *
+ * The product is one workspace, so these are in-page anchors rather than
+ * routes. That is the honest shape — inventing thirteen routes to make the rail
+ * look like a bigger application would be the fake version of this fix. Each
+ * href names an element the page actually renders, and `ActiveSection` marks
+ * whichever is on screen with `aria-current`.
  */
 
 interface NavItem {
   readonly label: string;
   readonly icon: ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
-  readonly active: boolean;
-  /** Set when the destination exists today. */
-  readonly href?: string;
+  /**
+   * The section this item reveals. Every one names an element that genuinely
+   * exists on the workspace — no route is invented to make the rail look busy.
+   */
+  readonly href: string;
 }
 
 interface NavGroup {
@@ -47,104 +54,65 @@ const GROUPS: readonly NavGroup[] = [
   {
     heading: 'Intelligence',
     items: [
-      { label: 'Overview', icon: IconOverview, active: true, href: '/' },
-      { label: 'Analysis', icon: IconAnalysis, active: false },
-      { label: 'Signals', icon: IconSignal, active: false },
-      { label: 'Interpretation', icon: IconInterpretation, active: false },
+      { label: 'Overview', icon: IconOverview, href: '#workspace' },
+      { label: 'Analysis', icon: IconAnalysis, href: '#section-analysis' },
+      { label: 'Signals', icon: IconSignal, href: '#section-signals' },
+      { label: 'Interpretation', icon: IconInterpretation, href: '#section-decision' },
     ],
   },
   {
     heading: 'Strategies',
     items: [
-      { label: 'Strategies', icon: IconStrategies, active: false },
-      { label: 'Backtesting', icon: IconBacktest, active: false },
+      { label: 'Strategies', icon: IconStrategies, href: '#strategies-heading' },
+      { label: 'Backtesting', icon: IconBacktest, href: '#backtest-heading' },
     ],
   },
   {
     heading: 'Risk',
     items: [
-      { label: 'Risk Dashboard', icon: IconRisk, active: false },
-      { label: 'Limits', icon: IconLimits, active: false },
+      { label: 'Risk Dashboard', icon: IconRisk, href: '#section-decision' },
+      { label: 'Limits', icon: IconLimits, href: '#account-risk-heading' },
     ],
   },
   {
     heading: 'Account',
     items: [
-      { label: 'Paper Trading', icon: IconPaper, active: false },
-      { label: 'Ledger', icon: IconLedger, active: false },
+      { label: 'Paper Trading', icon: IconPaper, href: '#section-action' },
+      { label: 'Ledger', icon: IconLedger, href: '#section-ledger' },
     ],
   },
   {
     heading: 'Analytics',
     items: [
-      { label: 'Performance', icon: IconPerformance, active: false },
-      { label: 'Calibration', icon: IconCalibration, active: false },
+      { label: 'Performance', icon: IconPerformance, href: '#performance-heading' },
+      { label: 'Calibration', icon: IconCalibration, href: '#calibration-heading' },
     ],
   },
   {
     heading: 'System',
-    // 'Settings' was removed: no settings capability exists, and a nav item for
-    // one is a promise the product does not keep. Every remaining item names a
-    // section that genuinely exists in the workspace.
-    items: [{ label: 'System', icon: IconSystem, active: false }],
+    items: [{ label: 'System', icon: IconSystem, href: '#system-heading' }],
   },
 ];
 
 function NavEntry({ item }: { item: NavItem }) {
   const Glyph = item.icon;
 
-  const shared =
-    'group relative flex items-center gap-3 rounded-[7px] px-2.5 py-2 text-[12.5px] transition-colors duration-150 xl:px-3';
-
-  if (item.active) {
-    return (
-      <li>
-        <span
-          aria-current="page"
-          className={`${shared} bg-accent/[0.07] font-medium text-text-1`}
-          title={item.label}
-        >
-          <span
-            aria-hidden
-            className="absolute top-1/2 -left-[10px] h-[18px] w-[2px] -translate-y-1/2 rounded-full bg-accent"
-          />
-          <Glyph size={16} className="text-accent" />
-          <span className="hidden truncate xl:inline">{item.label}</span>
-          <span className="sr-only xl:hidden">{item.label}</span>
-        </span>
-      </li>
-    );
-  }
-
-  /**
-   * An item with no destination.
-   *
-   * Two things were wrong here and both were invisible from the source:
-   *
-   *  - It carried `hover:bg-surface-2/50 hover:text-text-2`. A background that
-   *    lights up under the cursor is the strongest "click me" signal a rail
-   *    has, so the item advertised itself as navigation and then did nothing.
-   *    `cursor-not-allowed` arrives too late to undo that invitation.
-   *  - It carried `aria-disabled` on a bare `<span>`. That attribute only
-   *    applies to elements with a widget role, so a screen reader announced
-   *    the label with no hint that it leads nowhere — the sighted cue (dimmed
-   *    text) had no spoken equivalent.
-   *
-   * Now: no hover response at all, and the state is stated in text that
-   * assistive technology reads, which is the same information the dimming
-   * conveys visually.
-   */
   return (
     <li>
-      <span
-        title={`${item.label} — not implemented yet`}
-        className={`${shared} cursor-default text-text-3/60`}
+      <a
+        href={item.href}
+        data-nav-target={item.href}
+        className="group relative flex items-center gap-3 rounded-[7px] px-2.5 py-2 text-[12.5px] text-text-3 transition-colors duration-150 hover:bg-surface-2/60 hover:text-text-1 aria-[current=true]:bg-accent/[0.07] aria-[current=true]:font-medium aria-[current=true]:text-text-1 xl:px-3"
       >
-        <Glyph size={16} className="opacity-60" />
+        {/* The accent rule only appears on the current section. */}
+        <span
+          aria-hidden
+          className="absolute top-1/2 -left-[10px] h-[18px] w-[2px] -translate-y-1/2 rounded-full bg-accent opacity-0 group-aria-[current=true]:opacity-100"
+        />
+        <Glyph size={16} className="group-aria-[current=true]:text-accent" />
         <span className="hidden truncate xl:inline">{item.label}</span>
         <span className="sr-only xl:hidden">{item.label}</span>
-        <span className="sr-only"> — not implemented yet</span>
-      </span>
+      </a>
     </li>
   );
 }
@@ -197,22 +165,14 @@ export function Sidebar({ integrity }: { integrity?: { label: string; tone: stri
             const Glyph = item.icon;
             return (
               <li key={item.label}>
-                {/* Same reasoning as the rail above: no `aria-disabled` on a
-                    role-less span, and the unavailability is spoken rather than
-                    only dimmed. */}
-                <span
-                  aria-current={item.active ? 'page' : undefined}
-                  title={item.active ? undefined : `${item.label} — not implemented yet`}
-                  className={`flex items-center gap-2 rounded-[7px] px-3 py-1.5 text-[12px] whitespace-nowrap ${
-                    item.active
-                      ? 'bg-accent/10 font-medium text-text-1'
-                      : 'cursor-default text-text-3/60'
-                  }`}
+                <a
+                  href={item.href}
+                  data-nav-target={item.href}
+                  className="flex items-center gap-2 rounded-[7px] px-3 py-1.5 text-[12px] whitespace-nowrap text-text-3 transition-colors hover:bg-surface-2/60 hover:text-text-1 aria-[current=true]:bg-accent/10 aria-[current=true]:font-medium aria-[current=true]:text-text-1"
                 >
-                  <Glyph size={14} className={item.active ? 'text-accent' : 'opacity-60'} />
+                  <Glyph size={14} className="group-aria-[current=true]:text-accent" />
                   {item.label}
-                  {item.active ? null : <span className="sr-only"> — not implemented yet</span>}
-                </span>
+                </a>
               </li>
             );
           })}

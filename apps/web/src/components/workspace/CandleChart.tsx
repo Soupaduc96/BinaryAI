@@ -1,4 +1,12 @@
 import type { Candle } from '@binaryai/types';
+import type { IndicatorLine } from '@/lib/chart-overlays';
+
+/** A real recorded decision, placed on the bar it was decided on. */
+export interface SignalMarker {
+  readonly at: number;
+  readonly direction: 'call' | 'put';
+  readonly status: string;
+}
 
 /**
  * Candlestick renderer.
@@ -32,9 +40,44 @@ const PADDING_BOTTOM = 14;
 const MAX_SLOT = 44;
 const MAX_BODY = 20;
 
-function priceScale(candles: readonly Candle[]): Scale {
+/**
+ * Splits a series into runs of consecutive real values.
+ *
+ * A moving average has no value until it has enough bars, and a gap in the
+ * candles produces a gap in the indicator. Drawing one polyline through the
+ * nulls would connect the last value before a gap to the first value after it,
+ * asserting a smooth move across bars where the indicator was undefined.
+ */
+function segments(
+  values: readonly (number | null)[],
+): Array<Array<{ index: number; value: number }>> {
+  const runs: Array<Array<{ index: number; value: number }>> = [];
+  let run: Array<{ index: number; value: number }> = [];
+  values.forEach((value, index) => {
+    if (value === null || !Number.isFinite(value)) {
+      if (run.length > 1) runs.push(run);
+      run = [];
+      return;
+    }
+    run.push({ index, value });
+  });
+  if (run.length > 1) runs.push(run);
+  return runs;
+}
+
+function priceScale(candles: readonly Candle[], lines: readonly IndicatorLine[] = []): Scale {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
+  // A Bollinger band or a slow average can sit outside the candle range. If the
+  // scale ignored them the line would be drawn clipped at the plot edge, which
+  // reads as the indicator flattening rather than as the chart cropping it.
+  for (const line of lines) {
+    for (const value of line.values) {
+      if (value === null) continue;
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+  }
   for (const candle of candles) {
     if (candle.low < min) min = candle.low;
     if (candle.high > max) max = candle.high;
@@ -62,13 +105,20 @@ function formatTime(epochMs: number, timeframe: string): string {
 export function CandleChart({
   candles,
   timeframe,
+  indicatorLines = [],
+  markers = [],
+  showLastPrice = false,
 }: {
   candles: readonly Candle[];
   timeframe: string;
+  /** Computed from these same candles; nulls are warm-up, never filled in. */
+  indicatorLines?: readonly IndicatorLine[];
+  markers?: readonly SignalMarker[];
+  showLastPrice?: boolean;
 }) {
   if (candles.length === 0) return null;
 
-  const scale = priceScale(candles);
+  const scale = priceScale(candles, indicatorLines);
   const plotHeight = VIEW_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   // Bounded so a short series is legible instead of scattered, and a long one
   // still fills the plot.
@@ -192,6 +242,79 @@ export function CandleChart({
                   strokeWidth={1}
                   vectorEffect="non-scaling-stroke"
                   opacity={0.95}
+                />
+              </g>
+            );
+          })}
+
+          {/* Indicator lines, drawn over the candles.
+
+              Each null in a series is a genuine gap — the warm-up before the
+              average has enough bars — so the run is split into segments rather
+              than bridged. Bridging would draw a straight line across bars the
+              indicator had no value for, inventing a shape the maths never
+              produced. */}
+          {indicatorLines.map((line, lineIndex) =>
+            segments(line.values).map((segment, segmentIndex) => (
+              <polyline
+                key={`${line.label}-${lineIndex}-${segmentIndex}`}
+                points={segment
+                  .map(({ index, value }) => `${offset + index * slot + slot / 2},${y(value)}`)
+                  .join(' ')}
+                fill="none"
+                stroke={line.colour}
+                strokeWidth={1.5}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                {...(line.dashed ? { strokeDasharray: '3 3', opacity: 0.75 } : { opacity: 0.9 })}
+                vectorEffect="non-scaling-stroke"
+              />
+            )),
+          )}
+
+          {/* A rule at the most recent close. */}
+          {showLastPrice ? (
+            <g>
+              <line
+                x1={0}
+                x2={VIEW_WIDTH}
+                y1={y(last.close)}
+                y2={y(last.close)}
+                stroke={rising ? 'var(--bull)' : 'var(--bear)'}
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.7}
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          ) : null}
+
+          {/* Signal markers.
+
+              Placed on the bar whose period contains the decision, and only
+              when such a bar exists in the drawn window — a marker floating at
+              an edge would assert a decision on a bar that is not there. */}
+          {markers.map((marker) => {
+            const index = candles.findIndex(
+              (candle, position) =>
+                marker.at >= candle.timestamp &&
+                (position === candles.length - 1 || marker.at < candles[position + 1]!.timestamp),
+            );
+            if (index === -1) return null;
+            const centre = offset + index * slot + slot / 2;
+            const candle = candles[index]!;
+            const up = marker.direction === 'call';
+            const tip = up ? y(candle.low) + 12 : y(candle.high) - 12;
+            const colour = up ? 'var(--bull)' : 'var(--bear)';
+            return (
+              <g key={`${marker.at}-${marker.direction}`} opacity={0.95}>
+                <polygon
+                  points={
+                    up
+                      ? `${centre},${tip - 8} ${centre - 4},${tip} ${centre + 4},${tip}`
+                      : `${centre},${tip + 8} ${centre - 4},${tip} ${centre + 4},${tip}`
+                  }
+                  fill={colour}
                 />
               </g>
             );
