@@ -1,3 +1,4 @@
+import { findInstrument } from '@binaryai/market-data';
 import type { Account } from '@binaryai/types';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -59,6 +60,30 @@ const policyUpdateSchema = z
       .nullable()
       .optional(),
     allowedAssets: z.array(z.string().min(1).max(32)).max(50).nullable().optional(),
+    /**
+     * OPTIONAL per-instrument limits, keyed by catalogue symbol.
+     *
+     * R4. Every key is resolved through the catalogue before it is stored, so
+     * a limit cannot be attached to an instrument BinaryAI does not know — the
+     * same gate the ingest and evaluate routes use. Account limits remain the
+     * ceiling; nothing here can raise them.
+     *
+     * `null` clears the map. An absent key means no restriction on that
+     * instrument, which is the behaviour every account had before this existed.
+     */
+    perInstrument: z
+      .record(
+        z.string().min(1).max(32),
+        z
+          .object({
+            maxOpenPositions: z.number().int().min(0).max(100).optional(),
+            maxExposureFraction: z.number().min(0).max(1).optional(),
+            isolateCooldown: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -96,10 +121,61 @@ const openPositionSchema = z
   .strict();
 
 const listQuerySchema = z.object({
+  /**
+   * OPTIONAL instrument scope. R10.
+   *
+   * Absent keeps the existing account-wide behaviour. Present is resolved
+   * through the catalogue, so an alias binds on its canonical symbol and an
+   * unknown symbol earns the same refusal every other route gives.
+   */
+  asset: z.string().min(1).max(32).optional(),
   status: z.enum(['open', 'pending_settlement', 'settled', 'cancelled', 'rejected']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+/**
+ * A sentinel distinct from `undefined`.
+ *
+ * `undefined` means "no instrument scope requested", which is a valid and
+ * common case. A rejection has to be a different value, or the caller cannot
+ * tell "no scope" from "bad scope, response already sent".
+ */
+const REJECTED = Symbol('rejected');
+
+/**
+ * Resolves an optional `?asset=` through the CATALOGUE. R10.
+ *
+ * Returns the canonical symbol, `undefined` for no scope, or `REJECTED` after
+ * sending the same 404 every other route gives an unknown instrument.
+ *
+ * Resolving rather than trusting is what makes `?asset=BTC-USD` filter on
+ * `BTCUSD`, instead of matching nothing and quietly returning an empty list —
+ * a filter that silently finds nothing is worse than one that refuses.
+ */
+function resolveAssetScope(
+  asset: string | undefined,
+  reply: FastifyReply,
+  request: FastifyRequest,
+): string | undefined | typeof REJECTED {
+  if (asset === undefined) return undefined;
+
+  const instrument = findInstrument(asset);
+  if (!instrument) {
+    void reply
+      .code(404)
+      .send(
+        errorBody(
+          'unknown_instrument',
+          `${asset} is not in BinaryAI's instrument catalogue. GET /v1/instruments lists everything supported.`,
+          undefined,
+          String(request.id),
+        ),
+      );
+    return REJECTED;
+  }
+  return instrument.symbol;
+}
 
 function publicAccount(account: Account): Record<string, unknown> {
   return {
@@ -207,7 +283,38 @@ export function registerAccountRoutes(app: FastifyInstance, context: AppContext)
     const parsed = parseBody(policyUpdateSchema, request.body, reply);
     if (!parsed.ok) return parsed.sent;
 
-    const updated = await service.updatePolicy(account, parsed.data);
+    /*
+     * Every per-instrument key is resolved through the CATALOGUE.
+     *
+     * Same gate as ingestion and evaluation: a limit cannot be attached to an
+     * instrument BinaryAI does not know. Keys are normalised to their canonical
+     * symbol, so a policy written against  binds on  rather
+     * than sitting inert next to it and silently restricting nothing.
+     */
+    let perInstrument = parsed.data.perInstrument;
+    if (perInstrument != null) {
+      const resolved: Record<string, (typeof perInstrument)[string]> = {};
+      for (const [symbol, limits] of Object.entries(perInstrument)) {
+        const instrument = findInstrument(symbol);
+        if (!instrument) {
+          return reply
+            .code(404)
+            .send(
+              errorBody(
+                'unknown_instrument',
+                `${symbol} is not in BinaryAI's instrument catalogue, so a risk limit cannot be ` +
+                  'attached to it. GET /v1/instruments lists everything supported.',
+                undefined,
+                String(request.id),
+              ),
+            );
+        }
+        resolved[instrument.symbol] = limits;
+      }
+      perInstrument = resolved;
+    }
+
+    const updated = await service.updatePolicy(account, { ...parsed.data, perInstrument });
     const policy = service.policyFor(updated);
 
     // A policy that cannot be evaluated is refused rather than stored: an
@@ -371,13 +478,20 @@ export function registerAccountRoutes(app: FastifyInstance, context: AppContext)
       );
     }
 
+    const scope = resolveAssetScope(parsed.data.asset, reply, request);
+    if (scope === REJECTED) return reply;
+
     const positions = await service.listPositionDetails(account.id, {
       ...(parsed.data.status === undefined ? {} : { status: parsed.data.status }),
+      ...(scope === undefined ? {} : { assetSymbol: scope }),
       limit: parsed.data.limit,
       offset: parsed.data.offset,
     });
     return reply.send({
       positions,
+      // Stated so a reader never has to infer the scope from the rows.
+      scope: scope === undefined ? 'account' : 'instrument',
+      assetSymbol: scope ?? null,
       accounting:
         'Positions are simulated. No order was placed and no payout applies to any outcome.',
     });
@@ -506,11 +620,28 @@ export function registerAccountRoutes(app: FastifyInstance, context: AppContext)
         );
     }
 
+    const scope = resolveAssetScope(parsed.data.asset, reply, request);
+    if (scope === REJECTED) return reply;
+
     const [entries, state] = await Promise.all([
-      persistence.repositories.ledger.list(account.id, parsed.data.limit, parsed.data.offset),
+      persistence.repositories.ledger.list(
+        account.id,
+        parsed.data.limit,
+        parsed.data.offset,
+        scope,
+      ),
       service.state(account),
     ]);
-    return reply.send({ entries, state, accountingNote: state.accountingNote });
+    return reply.send({
+      entries,
+      // `state` stays ACCOUNT-WIDE even when the entries are scoped: an account
+      // has one balance and one exposure, and presenting a subset of entries
+      // beside a per-instrument total would invent a figure that does not exist.
+      state,
+      scope: scope === undefined ? 'account' : 'instrument',
+      assetSymbol: scope ?? null,
+      accountingNote: state.accountingNote,
+    });
   });
 
   // --------------------------------------------------------- risk events --

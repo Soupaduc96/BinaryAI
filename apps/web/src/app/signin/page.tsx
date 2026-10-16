@@ -35,30 +35,40 @@ export default async function SignInPage() {
               aria-hidden
               className="inline-block h-[18px] w-[3px] rounded-full bg-accent shadow-[0_0_10px_var(--accent)]"
             />
-            <span className="text-[15px] font-semibold tracking-tight text-text-1">BinaryAI</span>
+            <span className="flex flex-col gap-[3px] leading-none">
+              <span className="text-[9px] font-semibold tracking-[0.18em] text-text-3 uppercase">
+                PAD Digital LLC
+              </span>
+              <span className="text-[16px] font-semibold tracking-tight text-text-1">BinaryAI</span>
+            </span>
           </div>
+          {/*
+           * A real <h1>. Every other route has one through WorkspaceHeader;
+           * this page was the exception, which left a keyboard or screen-reader
+           * user arriving here with no heading to orient from.
+           */}
+          <h1 className="page-title">Konekte nan BinaryAI</h1>
           <p className="text-[13px] leading-relaxed text-text-3">
-            Market analysis and decision support. Demo only — BinaryAI places no orders and holds no
-            broker connection.
+            Analiz mache ak sipò desizyon. Demo sèlman — BinaryAI pa pase okenn lòd epi li pa gen
+            okenn koneksyon ak courtier.
           </p>
         </div>
 
-        <Surface className="p-5">
+        <Surface variant="primary" className="p-5">
           {!context.ok ? (
             <p className="text-[12px] leading-relaxed text-warn">
-              The API is unreachable, so signing in is not possible right now. {context.error}
+              API a enjwenyab, kidonk nou pa ka konekte kounye a. {context.error}
             </p>
           ) : !context.data.accountsAvailable ? (
             <p className="text-[12px] leading-relaxed text-warn">
               {context.data.reason ??
-                'No database is configured, so user accounts do not exist on this instance.'}
+                'Pa gen baz done konfigire, kidonk kont itilizatè pa egziste sou enstans sa a.'}
             </p>
           ) : (
             <>
               {context.data.bootstrapOpen ? (
-                <p className="mb-4 rounded-[6px] border border-accent/25 bg-accent-dim px-3 py-2 text-[12px] leading-relaxed text-accent">
-                  This instance has no accounts yet. The first account you create becomes the
-                  administrator.
+                <p className="mb-4 rounded-lg border border-accent/30 bg-accent-dim px-3 py-2 text-[12px] leading-relaxed text-accent">
+                  Enstans sa a poko gen kont. Premye kont ou kreye a ap vin administratè a.
                 </p>
               ) : null}
               <SignInForm
@@ -71,9 +81,9 @@ export default async function SignInPage() {
 
         {context.ok && !context.data.authEnabled ? (
           <p className="text-[11px] leading-relaxed text-text-3">
-            Authentication is currently disabled (<span className="tnum">AUTH_ENABLED=false</span>),
-            so the workspace is reachable without signing in. Signing in still scopes stored signals
-            to your account.
+            Otantifikasyon dezaktive kounye a (<span className="tnum">AUTH_ENABLED=false</span>),
+            kidonk espas travay la aksesib san konekte. Konekte toujou limite siyal ki anrejistre yo
+            ak kont ou.
           </p>
         ) : null}
       </div>

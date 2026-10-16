@@ -69,7 +69,15 @@ export const envSchema = z.object({
 
   // Market data. 'none' stays the default: ingestion is opt-in.
   //   coinbase -> Coinbase Exchange public API, no credentials required.
+  // Serves CRYPTO. Kept under its original name so existing deployments and
+  // scripts keep working unchanged.
   MARKET_DATA_PROVIDER: z.enum(['none', 'coinbase']).default('none'),
+  // Serves FOREX, STOCKS, INDICES and COMMODITIES. Defaults to 'none', and
+  // deliberately so: the only adapter available is Yahoo Finance's
+  // UNDOCUMENTED chart endpoint, which carries no SLA and no licence for
+  // programmatic access. An operator must opt in with eyes open, and until
+  // they do, those four classes report 'not configured' rather than pretending.
+  MARKET_DATA_EQUITY_PROVIDER: z.enum(['none', 'yahoo']).default('none'),
   // Unused by 'coinbase' (public endpoints); reserved for keyed providers.
   MARKET_DATA_API_KEY: optionalString,
   MARKET_DATA_WS_URL: optionalString,
@@ -126,7 +134,55 @@ export const envSchema = z.object({
   MARKET_DATA_POLL_INTERVAL_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(30_000),
   LIVE_ANALYSIS_ENABLED: booleanFromEnv(false),
   LIVE_ANALYSIS_INTERVAL_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(15_000),
+  /**
+   * The instrument the analysis worker runs against.
+   *
+   * Retained as the single-instrument setting so existing deployments keep
+   * working unchanged. ANALYSIS_INSTRUMENTS supersedes it when set.
+   */
   LIVE_ANALYSIS_SYMBOL: z.string().min(1).max(32).default('BTCUSD'),
+  /**
+   * The instruments the analysis worker runs against, each optionally carrying
+   * its own timeframe:
+   *
+   *   ANALYSIS_INSTRUMENTS=BTCUSD@1m,ETHUSD@1m,EURUSD@1h,AAPL@1d
+   *
+   * R2. A timeframe is a property of the INSTRUMENT, not of the worker. One
+   * global timeframe made a reasonable configuration inexpressible: BTC/USD is
+   * served at 1m, AAPL only ever has daily bars, and forcing AAPL onto 1m left
+   * it with no stored candles — every cycle skipped, silently, for ever.
+   *
+   * An entry with no '@' inherits LIVE_ANALYSIS_TIMEFRAME, so a deployment
+   * configured before this format existed behaves exactly as it did.
+   *
+   * D5. Empty by default, and deliberately so: a CATALOGUE instrument is one
+   * BinaryAI can chart; a CONFIGURED instrument is one it analyses. Enabling
+   * all thirty-six because they exist would multiply provider load and signal
+   * volume without anyone asking, so analysis stays opt-in per instrument.
+   *
+   * Structure is validated here; the symbols are resolved against the
+   * CATALOGUE when the app context is built, because this package is a
+   * zod-only leaf and must not depend on the market-data package. Either way
+   * an unknown symbol FAILS STARTUP rather than being skipped:
+   * a worker quietly analysing fewer instruments than configured is the
+   * failure mode that takes longest to notice.
+   */
+  ANALYSIS_INSTRUMENTS: z.string().max(512).default(''),
+  /**
+   * The instruments the INGESTION worker keeps fresh, comma-separated,
+   * each optionally carrying its own timeframe: BTCUSD@1m,AAPL@1d
+   *
+   * R1. Deliberately SEPARATE from ANALYSIS_INSTRUMENTS, because the two
+   * answer different questions. An instrument may have market data without
+   * being analysed — that is the normal case, and it is what makes a chart
+   * available for something the engine has no opinion about. Tying them
+   * together would mean either analysing everything chartable or letting
+   * every unanalysed chart go stale.
+   *
+   * Empty falls back to the single LIVE_ANALYSIS_SYMBOL, which is exactly what
+   * the ingestion worker polled before this setting existed.
+   */
+  INGESTION_INSTRUMENTS: z.string().max(512).default(''),
   LIVE_ANALYSIS_TIMEFRAME: z.enum(['1m', '5m', '15m', '1h', '1d']).default('1m'),
   LIVE_ANALYSIS_STRATEGY: z.string().min(1).max(64).default('trend-momentum'),
   SETTLEMENT_WORKER_ENABLED: booleanFromEnv(false),
@@ -172,7 +228,10 @@ export interface AppConfig {
   };
   readonly redis: { readonly url: string | undefined; readonly configured: boolean };
   readonly marketData: {
+    /** Serves crypto. */
     readonly provider: Env['MARKET_DATA_PROVIDER'];
+    /** Serves forex, stocks, indices and commodities. */
+    readonly equityProvider: Env['MARKET_DATA_EQUITY_PROVIDER'];
     readonly apiKey: string | undefined;
     readonly websocketUrl: string | undefined;
     readonly configured: boolean;
@@ -204,11 +263,38 @@ export interface AppConfig {
   readonly analytics: { readonly minimumSamples: number };
   readonly execution: { readonly mode: 'demo' | 'live'; readonly allowLive: boolean };
   readonly workers: {
-    readonly ingestion: { readonly enabled: boolean; readonly intervalMs: number };
+    readonly ingestion: {
+      readonly enabled: boolean;
+      readonly intervalMs: number;
+      /**
+       * Raw INGESTION_INSTRUMENTS text, resolved against the catalogue at boot.
+       *
+       * Kept as text here because this package is a zod-only leaf and cannot
+       * see the catalogue; `createAppContext` resolves it and fails startup on
+       * an unknown symbol or an unserved timeframe.
+       */
+      readonly configured: string;
+    };
     readonly analysis: {
       readonly enabled: boolean;
       readonly intervalMs: number;
+      /**
+       * The FIRST configured instrument.
+       *
+       * Kept so single-instrument callers and status payloads read naturally.
+       * `symbols` is the authoritative list; this is always symbols[0].
+       */
       readonly symbol: string;
+      /**
+       * Every configured analysis instrument, in configuration order.
+       *
+       * Always at least one entry. Derived from ANALYSIS_INSTRUMENTS when set,
+       * otherwise from LIVE_ANALYSIS_SYMBOL — so a deployment that never heard
+       * of the new setting behaves exactly as before.
+       */
+      readonly symbols: readonly string[];
+      /** Raw ANALYSIS_INSTRUMENTS text, resolved against the catalogue at boot. */
+      readonly configured: string;
       readonly timeframe: Env['LIVE_ANALYSIS_TIMEFRAME'];
       readonly strategyId: string;
     };
@@ -232,6 +318,22 @@ export class ConfigError extends Error {
  * Cross-field rules that a per-field schema cannot express.
  * Returns human-readable problems; an empty array means the config is coherent.
  */
+/**
+ * The configured analysis instruments, before catalogue validation.
+ *
+ * ANALYSIS_INSTRUMENTS wins when set; otherwise the legacy single symbol. Blank
+ * entries and stray whitespace are dropped so a trailing comma is not an error.
+ */
+export function parseAnalysisInstruments(env: Env): string[] {
+  // SYMBOLS only. Each entry may carry a timeframe as SYMBOL@TIMEFRAME; the
+  // suffix is stripped here because this list feeds structural checks and the
+  // legacy `symbols` field. The catalogue resolver parses the full form.
+  const configured = env.ANALYSIS_INSTRUMENTS.split(',')
+    .map((entry) => entry.trim().split('@')[0]?.trim() ?? '')
+    .filter((entry) => entry.length > 0);
+  return configured.length > 0 ? configured : [env.LIVE_ANALYSIS_SYMBOL];
+}
+
 function crossValidate(env: Env): string[] {
   const problems: string[] = [];
 
@@ -241,6 +343,46 @@ function crossValidate(env: Env): string[] {
         'until a reviewed live integration exists (see docs/adr/0004-demo-only-execution.md).',
     );
   }
+  const instruments = parseAnalysisInstruments(env);
+  if (instruments.length === 0) {
+    problems.push(
+      'ANALYSIS_INSTRUMENTS resolved to no instruments; leave it unset to use LIVE_ANALYSIS_SYMBOL.',
+    );
+  }
+  if (instruments.length > 25) {
+    problems.push(
+      `ANALYSIS_INSTRUMENTS names ${instruments.length} instruments; 25 is the ceiling. Each one ` +
+        'is an independent analysis cycle and provider budget.',
+    );
+  }
+  for (const symbol of instruments) {
+    if (!/^[A-Za-z0-9._-]{1,32}$/.test(symbol)) {
+      problems.push(`ANALYSIS_INSTRUMENTS contains "${symbol}", which is not a valid symbol.`);
+    }
+  }
+
+  /*
+   * INGESTION_INSTRUMENTS gets the same structural checks.
+   *
+   * Only shape is checked here — this package is a zod-only leaf and cannot see
+   * the catalogue. `createAppContext` resolves both settings against it and
+   * fails startup on an unknown symbol or an unserved timeframe.
+   */
+  const ingestion = env.INGESTION_INSTRUMENTS.split(',')
+    .map((entry) => entry.trim().split('@')[0]?.trim() ?? '')
+    .filter((entry) => entry.length > 0);
+  if (ingestion.length > 25) {
+    problems.push(
+      `INGESTION_INSTRUMENTS names ${ingestion.length} instruments; 25 is the ceiling. Each one ` +
+        'is an independent poll against a shared provider budget.',
+    );
+  }
+  for (const symbol of ingestion) {
+    if (!/^[A-Za-z0-9._-]{1,32}$/.test(symbol)) {
+      problems.push(`INGESTION_INSTRUMENTS contains "${symbol}", which is not a valid symbol.`);
+    }
+  }
+
   if (env.AI_PROVIDER === 'http_service' && !env.AI_SERVICE_URL) {
     problems.push('AI_PROVIDER=http_service requires AI_SERVICE_URL.');
   }
@@ -303,6 +445,8 @@ export function loadConfig(source: Record<string, string | undefined> = process.
   if (problems.length > 0) throw new ConfigError(problems);
 
   const env = parsed.data;
+  // Structurally validated above; resolved against the catalogue at boot.
+  const analysisInstruments = parseAnalysisInstruments(env);
   return {
     nodeEnv: env.NODE_ENV,
     logLevel: env.LOG_LEVEL,
@@ -328,9 +472,10 @@ export function loadConfig(source: Record<string, string | undefined> = process.
     redis: { url: env.REDIS_URL, configured: Boolean(env.REDIS_URL) },
     marketData: {
       provider: env.MARKET_DATA_PROVIDER,
+      equityProvider: env.MARKET_DATA_EQUITY_PROVIDER,
       apiKey: env.MARKET_DATA_API_KEY,
       websocketUrl: env.MARKET_DATA_WS_URL,
-      configured: env.MARKET_DATA_PROVIDER !== 'none',
+      configured: env.MARKET_DATA_PROVIDER !== 'none' || env.MARKET_DATA_EQUITY_PROVIDER !== 'none',
       stalenessThresholdSeconds: env.MARKET_DATA_STALENESS_SECONDS,
     },
     broker: {
@@ -358,11 +503,14 @@ export function loadConfig(source: Record<string, string | undefined> = process.
       ingestion: {
         enabled: env.MARKET_DATA_WORKER_ENABLED,
         intervalMs: env.MARKET_DATA_POLL_INTERVAL_MS,
+        configured: env.INGESTION_INSTRUMENTS,
       },
       analysis: {
         enabled: env.LIVE_ANALYSIS_ENABLED,
         intervalMs: env.LIVE_ANALYSIS_INTERVAL_MS,
-        symbol: env.LIVE_ANALYSIS_SYMBOL,
+        symbol: analysisInstruments[0] as string,
+        symbols: analysisInstruments,
+        configured: env.ANALYSIS_INSTRUMENTS,
         timeframe: env.LIVE_ANALYSIS_TIMEFRAME,
         strategyId: env.LIVE_ANALYSIS_STRATEGY,
       },

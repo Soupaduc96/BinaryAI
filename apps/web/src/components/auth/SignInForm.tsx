@@ -57,8 +57,8 @@ export function SignInForm({
         const body: unknown = await response.json().catch(() => null);
         const message =
           typeof body === 'object' && body !== null && 'error' in body
-            ? ((body as { error?: { message?: string } }).error?.message ?? 'Sign-in failed.')
-            : 'Sign-in failed.';
+            ? ((body as { error?: { message?: string } }).error?.message ?? 'Koneksyon an echwe.')
+            : 'Koneksyon an echwe.';
         setError(message);
         return;
       }
@@ -77,7 +77,7 @@ export function SignInForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
       <label className="flex flex-col gap-1.5">
-        <span className="eyebrow">Email</span>
+        <span className="eyebrow">Imèl</span>
         <input
           type="email"
           name="email"
@@ -91,7 +91,7 @@ export function SignInForm({
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="eyebrow">Password</span>
+        <span className="eyebrow">Modpas</span>
         <input
           type="password"
           name="password"
@@ -102,7 +102,7 @@ export function SignInForm({
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className="h-10 rounded-[6px] border border-edge-strong bg-surface-2 px-3 text-[13px] text-text-1 transition-colors placeholder:text-text-3 focus:border-accent/50"
-          placeholder={mode === 'create' ? 'At least 12 characters' : '••••••••••••'}
+          placeholder={mode === 'create' ? 'Omwen 12 karaktè' : '••••••••••••'}
         />
       </label>
 
@@ -120,7 +120,7 @@ export function SignInForm({
         disabled={busy}
         className="h-10 rounded-[6px] border border-accent/30 bg-accent-dim text-[13px] font-medium text-accent transition-colors hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {busy ? 'Working…' : mode === 'create' ? 'Create account' : 'Sign in'}
+        {busy ? 'Ap travay…' : mode === 'create' ? 'Kreye kont' : 'Konekte'}
       </button>
 
       {canCreate ? (
@@ -132,7 +132,7 @@ export function SignInForm({
           }}
           className="text-[12px] text-text-3 underline-offset-4 transition-colors hover:text-text-2 hover:underline"
         >
-          {mode === 'create' ? 'Already have an account? Sign in' : 'Create an account'}
+          {mode === 'create' ? 'Ou gen yon kont deja? Konekte' : 'Kreye yon kont'}
         </button>
       ) : null}
     </form>

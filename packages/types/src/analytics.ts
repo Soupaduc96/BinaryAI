@@ -217,6 +217,31 @@ export interface AnalyticsProvenance {
   readonly settlementSemantics: string;
   /** Window actually queried, echoed back. */
   readonly range: { readonly from: number | null; readonly to: number | null };
+  /**
+   * The INSTRUMENT these figures describe, when they describe one.
+   *
+   * R5. An accuracy figure or a calibration report carries no meaning without
+   * knowing which market produced it, and one stored with no instrument
+   * identity cannot be checked later: BTC's numbers and ETH's become
+   * indistinguishable the moment they leave the request that produced them.
+   *
+   * Always a CANONICAL catalogue symbol, resolved server-side. Never the
+   * caller's text — a report that took its identity from a query string could
+   * be labelled anything.
+   *
+   * Null means GENUINELY UNSCOPED: the figures pool every instrument the
+   * account can see. That is a real and legitimate state, so it is represented
+   * explicitly rather than by omission.
+   */
+  readonly assetSymbol: string | null;
+  /**
+   * Whether these figures describe one instrument or pool several.
+   *
+   * Stated separately from `assetSymbol` so a consumer never has to infer
+   * "pooled" from a missing field. The difference between "all instruments"
+   * and "we failed to record which" is exactly what R5 is about.
+   */
+  readonly instrumentScope: 'instrument' | 'all_instruments';
 }
 
 export interface AnalyticsOverview {

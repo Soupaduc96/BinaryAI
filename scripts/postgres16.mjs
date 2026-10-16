@@ -32,6 +32,15 @@ const DATABASE = 'binaryai_verify';
 /**
  * Starts a throwaway PostgreSQL 16 server and returns how to reach it.
  *
+ * ⚠ DESTRUCTIVE. This DELETES `dataDir` before starting. It exists to verify
+ * migrate-from-zero, so a reused cluster would silently skip the very path it
+ * is meant to prove. Never call it to "restart" a server holding data you want
+ * to keep — that is not a restart, it is a wipe and re-initialise. (Asked the
+ * hard way: it cost a populated development database mid-Phase-10.)
+ *
+ * To bring an EXISTING cluster back up, start the server without re-running
+ * this — or accept that the data is gone and re-run migrations and ingestion.
+ *
  * Throws if the binaries turn out not to be 16.x. That check is the entire
  * value of this module: a run against 15 or 17 that got REPORTED as a
  * PostgreSQL 16 verification would be worse than not running at all.

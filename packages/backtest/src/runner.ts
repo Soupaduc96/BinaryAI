@@ -47,6 +47,15 @@ export const DEFAULT_STAKE_MODEL: StakeModel = { kind: 'fixed', value: 10 };
 
 export interface BacktestRequest {
   readonly asset: MarketAsset;
+  /**
+   * Whether `asset` came from the catalogue or is an unresolved caller label.
+   *
+   * R8. The runner does not guess this from the asset class, because a caller
+   * could hand-build an asset with a plausible class and the run would then
+   * claim an identity nobody established. Defaults to 'unresolved': an
+   * identity has to be asserted, never assumed.
+   */
+  readonly instrumentIdentity?: DatasetDescriptor['instrumentIdentity'];
   readonly series: CandleSeries;
   readonly strategy: Strategy;
   readonly config: BacktestConfig;
@@ -173,7 +182,10 @@ export function runBacktest(request: BacktestRequest): BacktestResult {
   }
 
   const dataset: DatasetDescriptor = {
-    asset: series.asset,
+    // The RESOLVED symbol, not the caller's series label. R8: a run stored
+    // under 'btc-usd' cannot be joined to signals stored under 'BTCUSD'.
+    asset: asset.symbol,
+    instrumentIdentity: request.instrumentIdentity ?? 'unresolved',
     timeframe: series.timeframe,
     source: series.source,
     candleCount: candles.length,

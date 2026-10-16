@@ -189,3 +189,116 @@ describe('withoutRejectedCandles', () => {
     expect(report.accepted + report.rejected).toBe(2);
   });
 });
+
+/**
+ * Session-anchored alignment.
+ *
+ * The check this covers used to require `timestamp % stepMs === 0` — a daily
+ * candle must open at UTC midnight. True of a 24/7 crypto venue, false of every
+ * session-based one, and it rejected 205 of 205 real daily candles for stocks,
+ * indices and commodities when multi-asset support was added.
+ *
+ * The offsets below are the ones the live providers actually return, measured
+ * during Phase 10 rather than assumed.
+ */
+describe('session-anchored alignment', () => {
+  const DAY = 24 * 60 * MINUTE;
+  /** 13:30 UTC — 09:30 New York during EDT. Stocks and indices. */
+  const EDT_OPEN = 13.5 * 60 * MINUTE;
+  /** 14:30 UTC — 09:30 New York during EST. The other half of the year. */
+  const EST_OPEN = 14.5 * 60 * MINUTE;
+
+  const daily = (candles: Candle[]): CandleSeries => ({
+    asset: 'AAPL',
+    timeframe: '1d',
+    source: 'historical_provider',
+    candles,
+  });
+
+  const session = (dayIndex: number, openOffset: number): Candle => ({
+    timestamp: Date.UTC(2026, 0, 1) + dayIndex * DAY + openOffset,
+    open: 100,
+    high: 101,
+    low: 99,
+    close: 100.5,
+    volume: 1000,
+    complete: true,
+  });
+
+  it('accepts daily bars that open at an exchange session rather than UTC midnight', () => {
+    const bars = Array.from({ length: 20 }, (_unused, index) => session(index, EDT_OPEN));
+    const report = validateIngestedBatch(daily(bars), {
+      now: bars[bars.length - 1]!.timestamp + DAY,
+      stalenessThresholdSeconds: 10 * 24 * 3600,
+    });
+
+    expect(report.rejected).toBe(0);
+    expect(report.accepted).toBe(20);
+    expect(report.issues.map((issue) => issue.code)).not.toContain('unaligned_candle_boundary');
+  });
+
+  it('accepts BOTH daylight-saving regimes in one series', () => {
+    // A year of US equity dailies genuinely contains two session offsets. A
+    // single anchor rejected whichever was in the minority — 85 real bars.
+    const summer = Array.from({ length: 30 }, (_unused, index) => session(index, EDT_OPEN));
+    const winter = Array.from({ length: 15 }, (_unused, index) => session(index + 30, EST_OPEN));
+    const report = validateIngestedBatch(daily([...summer, ...winter]), {
+      now: Date.UTC(2026, 0, 1) + 60 * DAY,
+      stalenessThresholdSeconds: 30 * 24 * 3600,
+    });
+
+    expect(report.rejected).toBe(0);
+    expect(report.accepted).toBe(45);
+  });
+
+  it('still rejects a bar off the grid its own series established', () => {
+    // The property the check exists to defend. Twenty bars agree on a session
+    // open; one arrives eleven minutes late and is not the bar it claims to be.
+    const bars = Array.from({ length: 20 }, (_unused, index) => session(index, EDT_OPEN));
+    const stray = session(20, EDT_OPEN + 11 * MINUTE);
+    const report = validateIngestedBatch(daily([...bars, stray]), {
+      now: stray.timestamp + DAY,
+      stalenessThresholdSeconds: 10 * 24 * 3600,
+    });
+
+    expect(report.issues.map((issue) => issue.code)).toContain('unaligned_candle_boundary');
+    expect(report.rejected).toBe(1);
+    expect(report.accepted).toBe(20);
+  });
+
+  it('does not let one stray bar establish a convention', () => {
+    // Three votes minimum. Otherwise a single corrupt timestamp would define
+    // the grid it sits on and validate itself.
+    const bars = Array.from({ length: 20 }, (_unused, index) => session(index, EDT_OPEN));
+    const strays = [session(20, EDT_OPEN + 7 * MINUTE), session(21, EDT_OPEN + 9 * MINUTE)];
+    const report = validateIngestedBatch(daily([...bars, ...strays]), {
+      now: strays[1]!.timestamp + DAY,
+      stalenessThresholdSeconds: 10 * 24 * 3600,
+    });
+
+    expect(report.rejected).toBe(2);
+  });
+
+  it('keeps UTC alignment valid without any evidence', () => {
+    // Offset 0 is always legitimate, so a crypto series is unaffected by any of
+    // this — including a series of exactly one candle.
+    const report = validateIngestedBatch(series([candle(0)]), { ...options, now: T0 + MINUTE });
+    expect(report.issues.map((issue) => issue.code)).not.toContain('unaligned_candle_boundary');
+    expect(report.rejected).toBe(0);
+  });
+
+  it('ignores an incomplete forming bar when deriving the grid', () => {
+    // Yahoo stamps the still-forming bar at "now", which is an arbitrary
+    // offset. Letting it vote would corrupt the grid for every settled bar.
+    const bars = Array.from({ length: 20 }, (_unused, index) => session(index, EDT_OPEN));
+    const forming: Candle = { ...session(20, EDT_OPEN + 4321), complete: false };
+    const report = validateIngestedBatch(daily([...bars, forming]), {
+      now: forming.timestamp,
+      stalenessThresholdSeconds: 10 * 24 * 3600,
+    });
+
+    // The settled bars are all accepted; only the forming one fails alignment.
+    expect(report.accepted).toBe(20);
+    expect(report.rejected).toBe(1);
+  });
+});

@@ -136,7 +136,7 @@ export function SettingsPanel({ signedIn }: { signedIn: boolean }) {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label="Settings"
+        aria-label="Paramèt"
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border transition-colors ${
           open
             ? 'border-accent/40 bg-accent/10 text-text-1'
@@ -151,23 +151,23 @@ export function SettingsPanel({ signedIn }: { signedIn: boolean }) {
           ref={panelRef}
           id={panelId}
           role="dialog"
-          aria-label="Settings"
-          className="panel absolute top-10 right-0 z-40 flex w-[330px] flex-col gap-3 p-3.5"
+          aria-label="Paramèt"
+          className="panel panel-primary animate-rise absolute top-11 right-0 z-40 flex w-[min(330px,calc(100vw-2rem))] flex-col gap-3 p-3.5"
         >
           <div className="flex flex-col gap-1">
-            <p className="telemetry-label">Sessions</p>
+            <p className="telemetry-label">Sesyon</p>
             <p className="text-[11px] leading-relaxed text-text-3">
-              Every device signed in to this account. Sessions are server-side, so ending one takes
-              effect immediately.
+              Chak aparèy ki konekte sou kont sa a. Sesyon yo sou sèvè a, kidonk lè ou fini youn li
+              aplike imedyatman.
             </p>
           </div>
 
           {!signedIn ? (
             <p className="rounded-[6px] border border-edge bg-surface-2 px-3 py-2.5 text-[12px] text-text-3">
-              Sign in to manage sessions.
+              Konekte pou jere sesyon yo.
             </p>
           ) : state === 'loading' ? (
-            <p className="text-[12px] text-text-3">Loading…</p>
+            <p className="text-[12px] text-text-3">Ap chaje…</p>
           ) : sessions && sessions.length > 0 ? (
             <ul className="flex max-h-[190px] flex-col gap-1.5 overflow-y-auto">
               {sessions.map((session) => (
@@ -177,23 +177,23 @@ export function SettingsPanel({ signedIn }: { signedIn: boolean }) {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-[12px] text-text-2">
-                      {session.userAgent ?? 'Unknown client'}
+                      {session.userAgent ?? 'Kliyan enkoni'}
                     </span>
                     {session.current ? (
                       <span className="shrink-0 rounded-[4px] border border-accent/35 px-1.5 py-px font-mono text-[9px] tracking-wider text-accent uppercase">
-                        this one
+                        sa a
                       </span>
                     ) : null}
                   </span>
                   <span className="tnum text-[10.5px] text-text-3">
-                    {session.ipAddress ?? '—'} · last seen {when(session.lastSeenAt)} · expires{' '}
+                    {session.ipAddress ?? '—'} · dènye fwa {when(session.lastSeenAt)} · ekspire{' '}
                     {when(session.expiresAt)}
                   </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-[12px] text-text-3">No active sessions.</p>
+            <p className="text-[12px] text-text-3">Pa gen sesyon aktif.</p>
           )}
 
           {signedIn ? (
@@ -201,9 +201,9 @@ export function SettingsPanel({ signedIn }: { signedIn: boolean }) {
               type="button"
               onClick={() => void revokeAll()}
               disabled={state === 'working'}
-              className="h-8 rounded-[6px] border border-bear/40 bg-bear/10 text-[12px] font-medium text-bear transition-colors hover:bg-bear/15 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-8 rounded-lg border border-bear/40 bg-bear/10 text-[12px] font-medium text-bear hover:bg-bear/[0.18] disabled:cursor-not-allowed"
             >
-              {state === 'working' ? 'Ending sessions…' : 'Sign out everywhere'}
+              {state === 'working' ? 'Ap fini sesyon yo…' : 'Dekonekte tout kote'}
             </button>
           ) : null}
 
@@ -214,20 +214,20 @@ export function SettingsPanel({ signedIn }: { signedIn: boolean }) {
           ) : null}
 
           <div className="flex flex-col gap-1 border-t border-edge pt-2.5">
-            <p className="telemetry-label">This deployment</p>
+            <p className="telemetry-label">Deplwaman sa a</p>
             {/* Read-only on purpose. These are server-side configuration, and a
                 control here that appeared to change them would be a lie about
                 where the decision lives. */}
             <dl className="flex flex-col gap-1 text-[11px]">
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-text-3">Execution</dt>
+                <dt className="text-text-3">Egzekisyon</dt>
                 <dd className="font-mono text-[10px] tracking-wider text-warn uppercase">
-                  demo only
+                  demo sèlman
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-text-3">Broker</dt>
-                <dd className="text-text-2">None connected</dd>
+                <dt className="text-text-3">Courtier</dt>
+                <dd className="text-text-2">Pa gen youn konekte</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-text-3">API</dt>
@@ -235,8 +235,8 @@ export function SettingsPanel({ signedIn }: { signedIn: boolean }) {
               </div>
             </dl>
             <p className="pt-1 text-[10.5px] leading-relaxed text-text-3">
-              Instrument, timeframe defaults and worker intervals are set by the server and are not
-              editable from the dashboard.
+              Enstriman, entèval pa defo ak entèval travayè yo defini sou sèvè a — yo pa modifyab
+              depi entèfas la.
             </p>
           </div>
         </div>

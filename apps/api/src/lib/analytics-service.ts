@@ -105,6 +105,11 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
       dataOrigins: origins as readonly MarketDataSource[],
       settlementSemantics: SETTLEMENT_SEMANTICS,
       range: { from: query.from ?? null, to: query.to ?? null },
+      // R5. Taken from the query the service actually ran, which the ROUTE
+      // resolved through the catalogue — so a stored report always names the
+      // instrument it measured, and can never take that name from caller text.
+      assetSymbol: query.assetSymbol ?? null,
+      instrumentScope: query.assetSymbol === undefined ? 'all_instruments' : 'instrument',
     };
   }
 

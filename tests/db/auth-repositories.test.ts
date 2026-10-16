@@ -340,6 +340,9 @@ describe('accounts', () => {
       allowedStrategies: ['trend-momentum'],
       allowedTimeframes: ['5m'],
       allowedAssets: null,
+      // Null: no instrument-specific limits, which is what every account had
+      // before per-instrument limits existed.
+      perInstrument: null,
     });
 
     const updated = await repositories.accounts.findById(account.id);

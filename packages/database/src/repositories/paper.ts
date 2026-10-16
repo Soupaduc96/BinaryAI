@@ -204,6 +204,12 @@ export function createPaperPositionRepository(
         params.push(query.signalId);
         conditions.push(`p.signal_id = $${params.length}`);
       }
+      // R10. The position's OWN denormalised symbol, written from the signal at
+      // open time — not a join and not caller text.
+      if (query.assetSymbol !== undefined) {
+        params.push(query.assetSymbol);
+        conditions.push(`p.asset_symbol = $${params.length}`);
+      }
       params.push(Math.min(query.limit ?? 50, 200));
       const limitClause = `LIMIT $${params.length}`;
       params.push(query.offset ?? 0);
@@ -237,11 +243,22 @@ export function createPaperPositionRepository(
       accountId: string,
       windowFromMs: number,
       now: number,
+      assetSymbol?: string,
     ): Promise<AccountActivitySnapshot> {
+      /*
+       * The per-instrument aggregates ride along on the SAME scan.
+       *
+       * Asking for them in a second query would double the round trips on the
+       * hot path of every position creation, to answer a question these rows
+       * already contain. The CASE guards keep them NULL when no instrument was
+       * named, so "not asked" stays distinguishable from "none open".
+       */
       const result = await executor.query<{
         open_count: string;
         settled_count: string;
         exposure: string | null;
+        instrument_open_count: string | null;
+        instrument_exposure: string | null;
       }>(
         `SELECT
            COUNT(*) FILTER (WHERE status IN ('open', 'pending_settlement'))       AS open_count,
@@ -249,10 +266,21 @@ export function createPaperPositionRepository(
            COALESCE(SUM(size) FILTER (
              WHERE opened_at >= $2 AND opened_at <= $3
                AND status <> 'cancelled' AND status <> 'rejected'
-           ), 0)                                                                  AS exposure
+           ), 0)                                                                  AS exposure,
+           CASE WHEN $4::text IS NULL THEN NULL ELSE
+             COUNT(*) FILTER (
+               WHERE asset_symbol = $4 AND status IN ('open', 'pending_settlement')
+             )
+           END                                                                    AS instrument_open_count,
+           CASE WHEN $4::text IS NULL THEN NULL ELSE
+             COALESCE(SUM(size) FILTER (
+               WHERE asset_symbol = $4 AND opened_at >= $2 AND opened_at <= $3
+                 AND status <> 'cancelled' AND status <> 'rejected'
+             ), 0)
+           END                                                                    AS instrument_exposure
          FROM paper_positions
          WHERE account_id = $1`,
-        [accountId, toTimestamp(windowFromMs), toTimestamp(now)],
+        [accountId, toTimestamp(windowFromMs), toTimestamp(now), assetSymbol ?? null],
       );
       const row = result.rows[0];
 
@@ -260,8 +288,12 @@ export function createPaperPositionRepository(
       // newest first, stopping at the first non-loss. A tie or an unresolved
       // outcome BREAKS the streak rather than extending it: neither is a loss,
       // and treating them as one would trigger a halt the user did not earn.
-      const recent = await executor.query<{ result: string; settled_at: Date }>(
-        `SELECT result, settled_at
+      const recent = await executor.query<{
+        result: string;
+        settled_at: Date;
+        asset_symbol: string;
+      }>(
+        `SELECT result, settled_at, asset_symbol
          FROM paper_positions
          WHERE account_id = $1 AND status = 'settled' AND result IS NOT NULL
          ORDER BY settled_at DESC
@@ -269,12 +301,36 @@ export function createPaperPositionRepository(
         [accountId],
       );
 
+      // Per-instrument loss recency, for policies that isolate the cooldown.
+      // Read from the same rows: no extra query.
+      let instrumentLastLossAt: number | null = null;
       let consecutiveLosses = 0;
       let lastLossAt: number | null = null;
+      let streakBroken = false;
       for (const entry of recent.rows) {
-        if (entry.result !== 'loss') break;
-        consecutiveLosses += 1;
-        if (lastLossAt === null) lastLossAt = new Date(entry.settled_at).getTime();
+        const isLoss = entry.result === 'loss';
+
+        // The STREAK stops at the first non-loss, as it always has.
+        if (!streakBroken) {
+          if (isLoss) {
+            consecutiveLosses += 1;
+            if (lastLossAt === null) lastLossAt = new Date(entry.settled_at).getTime();
+          } else {
+            streakBroken = true;
+          }
+        }
+
+        // RECENCY on this instrument keeps scanning past a non-loss: the most
+        // recent loss on one instrument may sit behind a win on another, and a
+        // cooldown asks when it happened, not whether it led a streak.
+        if (
+          assetSymbol !== undefined &&
+          isLoss &&
+          entry.asset_symbol === assetSymbol &&
+          instrumentLastLossAt === null
+        ) {
+          instrumentLastLossAt = new Date(entry.settled_at).getTime();
+        }
       }
 
       return {
@@ -283,15 +339,35 @@ export function createPaperPositionRepository(
         consecutiveLosses,
         lastLossAt,
         settledPositions: Number(row?.settled_count ?? 0),
+        // Null when no instrument was named — 'not asked' is not 'none open'.
+        instrumentOpenPositions:
+          row?.instrument_open_count == null ? null : Number(row.instrument_open_count),
+        instrumentExposureInWindow:
+          row?.instrument_exposure == null ? null : Math.abs(Number(row.instrument_exposure)),
+        instrumentLastLossAt,
       };
     },
 
     async findExpired(before: number, limit = 100): Promise<readonly AccountPaperPosition[]> {
+      /*
+       * R17 — fair across instruments, for the same reason as the signal scan.
+       *
+       * A busy 1m instrument would otherwise fill every settlement batch and a
+       * daily instrument's position would wait behind its backlog. Ranking
+       * per instrument and ordering by that rank first interleaves them, while
+       * preserving oldest-first WITHIN each instrument.
+       */
       const result = await executor.query<PositionRow>(
-        `SELECT ${POSITION_COLUMNS}
-         FROM paper_positions p JOIN signals s ON s.id = p.signal_id
-         WHERE p.expires_at <= $1 AND p.status IN ('open', 'pending_settlement')
-         ORDER BY p.expires_at ASC
+        `WITH pending AS (
+           SELECT ${POSITION_COLUMNS},
+                  ROW_NUMBER() OVER (
+                    PARTITION BY p.asset_symbol ORDER BY p.expires_at ASC, p.id
+                  ) AS instrument_rank
+           FROM paper_positions p JOIN signals s ON s.id = p.signal_id
+           WHERE p.expires_at <= $1 AND p.status IN ('open', 'pending_settlement')
+         )
+         SELECT * FROM pending
+         ORDER BY instrument_rank ASC, expires_at ASC, id
          LIMIT $2`,
         [toTimestamp(before), limit],
       );

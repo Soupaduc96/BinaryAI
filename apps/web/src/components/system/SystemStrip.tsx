@@ -42,14 +42,9 @@ export function SystemStrip({ status }: { status: ApiResult<SystemStatus> }) {
   if (!status.ok) {
     return (
       <Surface aria-labelledby="system-heading">
-        <ModuleHeader label="System" id="system-heading" />
+        <ModuleHeader label="Sistèm" id="system-heading" />
         <div className="px-5 py-5">
-          <Dormant
-            headline="API unreachable"
-            detail={status.error}
-            hint="npm run dev:api"
-            hintMono
-          />
+          <Dormant headline="API enjwenyab" detail={status.error} hint="npm run dev:api" hintMono />
         </div>
       </Surface>
     );
@@ -60,7 +55,7 @@ export function SystemStrip({ status }: { status: ApiResult<SystemStatus> }) {
   return (
     <Surface aria-labelledby="system-heading">
       <ModuleHeader
-        label="System"
+        label="Sistèm"
         id="system-heading"
         meta={`v${data.version} · uptime ${data.uptimeSeconds}s · ${data.executionMode}`}
       />

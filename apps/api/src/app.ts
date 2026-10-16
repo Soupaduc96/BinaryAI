@@ -9,6 +9,7 @@ import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerBacktestRoutes } from './routes/backtest.js';
 import { registerMarketDataRoutes } from './routes/market-data.js';
+import { registerInstrumentRoutes } from './routes/instruments.js';
 import { registerRuntimeRoutes } from './routes/runtime.js';
 import { registerSignalRoutes } from './routes/signals.js';
 import { registerStrategyRoutes } from './routes/strategies.js';
@@ -57,6 +58,7 @@ export async function buildApp(context: AppContext): Promise<FastifyInstance> {
   registerAnalyticsRoutes(app, context);
   registerAccountRoutes(app, context);
   registerMarketDataRoutes(app, context);
+  registerInstrumentRoutes(app, context);
   registerRuntimeRoutes(app, context);
   registerBacktestRoutes(app, context);
 

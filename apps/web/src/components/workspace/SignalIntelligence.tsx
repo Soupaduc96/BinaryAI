@@ -95,12 +95,12 @@ export function SignalIntelligence({
   if (!feed.ok) {
     return (
       <Surface aria-labelledby="signals-heading" className="flex flex-col">
-        <ModuleHeader label="Signal Intelligence" id="signals-heading" />
+        <ModuleHeader label="Entèlijans siyal" id="signals-heading" />
         {feed.unauthorized ? (
-          <Locked what="Your own signals are private; the shared stream needs a session." />
+          <Locked what="Pwòp siyal ou yo prive; flux pataje a mande yon sesyon." />
         ) : (
           <div className="px-5 py-6">
-            <Dormant headline="Feed unavailable" detail={feed.error} />
+            <Dormant headline="Flux endisponib" detail={feed.error} />
           </div>
         )}
       </Surface>
@@ -112,10 +112,10 @@ export function SignalIntelligence({
   if (signals.length === 0) {
     return (
       <Surface aria-labelledby="signals-heading" className="flex flex-col">
-        <ModuleHeader label="Signal Intelligence" id="signals-heading" meta="0 recorded" />
+        <ModuleHeader label="Entèlijans siyal" id="signals-heading" meta="0 recorded" />
         <div className="px-5 py-6">
           <Dormant
-            headline="No validated signals"
+            headline="Pa gen siyal valide"
             detail="BinaryAI will surface signals here once market data has been validated and a decision recorded."
             hint="Feed columns: time · instrument · direction · confidence · risk · state · action"
           />
@@ -133,7 +133,7 @@ export function SignalIntelligence({
 
   return (
     <Surface aria-labelledby="signals-heading" className="flex flex-col">
-      <ModuleHeader label="Signal Intelligence" id="signals-heading" meta={`${total} recorded`} />
+      <ModuleHeader label="Entèlijans siyal" id="signals-heading" meta={`${total} recorded`} />
 
       {/* Cards below lg. Same data, same states, no sideways scroll. */}
       <ul className="flex flex-col divide-y divide-edge/70 lg:hidden">

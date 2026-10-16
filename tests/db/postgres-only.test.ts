@@ -25,58 +25,77 @@ import { createTestDatabase, migrate, seedUserAndAccount, type TestDatabase } fr
  * `docker compose up -d`) to run it.
  */
 
+/**
+ * Both tests below start their own engine INSIDE the test body rather than in a
+ * hook, because each one is a statement about the engine itself. That puts a
+ * cold PGlite boot on the 30s test budget instead of the 60s hook budget every
+ * other database file enjoys — and on a loaded machine that boot has been
+ * observed at 40s, failing a test that asserts nothing about timing. The budget
+ * is matched to the hook budget for that reason; it is not a workaround for a
+ * slow assertion.
+ */
+const ENGINE_BOOT_TIMEOUT_MS = 60_000;
+
 const url = process.env['DATABASE_URL'];
 const onServer = url ? describe : describe.skip;
 
 describe('database test matrix', () => {
-  it('states which engine these tests ran against', async () => {
-    const test = await createTestDatabase();
-    try {
-      // Not an assertion about correctness — a record in the test output, so a
-      // green run can never be mistaken for a green run on a server.
-      // eslint-disable-next-line no-console
-      console.log(
-        `[db] engine=${test.engine} version=${test.version}` +
-          (test.engine === 'pglite-embedded'
-            ? ' — concurrency guarantees are SKIPPED. Set DATABASE_URL for the authoritative run.'
-            : ''),
-      );
-      expect(test.engine === 'postgres-server' || test.engine === 'pglite-embedded').toBe(true);
-    } finally {
-      await test.close();
-    }
-  });
-
-  it('records that the embedded engine is a DIFFERENT major version from the target', async () => {
-    // Worth stating plainly, because it cuts the opposite way from how PGlite
-    // is usually described. PGlite 0.5 embeds PostgreSQL 18; production targets
-    // 16. So the local suite runs on an engine NEWER than the one deployed, and
-    // the direction of that gap is the dangerous one: syntax or behaviour added
-    // after 16 passes locally and fails on the server. A green local run is
-    // therefore not evidence of 16 compatibility even for single-connection
-    // behaviour — only the CI job against postgres:16 is.
-    //
-    // This test asserts nothing about which version is correct. It exists so
-    // the gap is recorded in the output of every run rather than living in a
-    // document nobody reads during an incident.
-    const test = await createTestDatabase();
-    try {
-      const result = await test.database.query<{ version: string }>(
-        "SELECT current_setting('server_version') AS version",
-      );
-      const major = Number((result.rows[0]?.version ?? '0').split('.')[0]);
-      if (test.engine === 'pglite-embedded' && major !== 16) {
+  it(
+    'states which engine these tests ran against',
+    async () => {
+      const test = await createTestDatabase();
+      try {
+        // Not an assertion about correctness — a record in the test output, so a
+        // green run can never be mistaken for a green run on a server.
         // eslint-disable-next-line no-console
         console.log(
-          `[db] WARNING: embedded engine is PostgreSQL ${major}; production targets 16. ` +
-            'Local green does not imply 16 compatibility.',
+          `[db] engine=${test.engine} version=${test.version}` +
+            (test.engine === 'pglite-embedded'
+              ? ' — concurrency guarantees are SKIPPED. Set DATABASE_URL for the authoritative run.'
+              : ''),
         );
+        expect(test.engine === 'postgres-server' || test.engine === 'pglite-embedded').toBe(true);
+      } finally {
+        await test.close();
       }
-      expect(Number.isFinite(major)).toBe(true);
-    } finally {
-      await test.close();
-    }
-  });
+    },
+    ENGINE_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    'records that the embedded engine is a DIFFERENT major version from the target',
+    async () => {
+      // Worth stating plainly, because it cuts the opposite way from how PGlite
+      // is usually described. PGlite 0.5 embeds PostgreSQL 18; production targets
+      // 16. So the local suite runs on an engine NEWER than the one deployed, and
+      // the direction of that gap is the dangerous one: syntax or behaviour added
+      // after 16 passes locally and fails on the server. A green local run is
+      // therefore not evidence of 16 compatibility even for single-connection
+      // behaviour — only the CI job against postgres:16 is.
+      //
+      // This test asserts nothing about which version is correct. It exists so
+      // the gap is recorded in the output of every run rather than living in a
+      // document nobody reads during an incident.
+      const test = await createTestDatabase();
+      try {
+        const result = await test.database.query<{ version: string }>(
+          "SELECT current_setting('server_version') AS version",
+        );
+        const major = Number((result.rows[0]?.version ?? '0').split('.')[0]);
+        if (test.engine === 'pglite-embedded' && major !== 16) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[db] WARNING: embedded engine is PostgreSQL ${major}; production targets 16. ` +
+              'Local green does not imply 16 compatibility.',
+          );
+        }
+        expect(Number.isFinite(major)).toBe(true);
+      } finally {
+        await test.close();
+      }
+    },
+    ENGINE_BOOT_TIMEOUT_MS,
+  );
 });
 
 onServer('PostgreSQL server — version', () => {

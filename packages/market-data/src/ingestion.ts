@@ -4,6 +4,7 @@ import {
   type IngestionIssue,
   type IngestionRequest,
   type IngestionRunResult,
+  type MarketAsset,
   type MarketDataProvider,
   type Repositories,
   type Timeframe,
@@ -13,6 +14,7 @@ import { errorKind, isRetryable, ProviderError } from './provider-error.js';
 import { normalizeProviderResult } from './normalize.js';
 import { validateIngestedBatch, withoutRejectedCandles } from './quality.js';
 import type { IngestionTracker } from './observability.js';
+import type { RateBudget } from './rate-budget.js';
 
 /**
  * Historical ingestion worker.
@@ -36,6 +38,23 @@ export interface IngestionDeps {
   /** Omit to run without persistence; the result reports `persisted: false`. */
   readonly repositories?: Repositories | null;
   readonly tracker?: IngestionTracker;
+  /**
+   * Full instrument metadata for the asset row this run creates or refreshes.
+   *
+   * Optional so existing callers keep compiling, but every caller that HAS an
+   * instrument should pass it: without one the asset is stored with an
+   * 'unknown' class rather than a guessed one.
+   */
+  readonly asset?: MarketAsset;
+  /**
+   * Request spacing SHARED with every other run against this provider.
+   *
+   * R15. Without it each run keeps its own `lastRequestAt`, so N parallel
+   * instruments on one vendor each believe they hold the whole allowance —
+   * N times the configured budget. Optional so a single-run caller keeps
+   * working unchanged; the router supplies one per provider instance.
+   */
+  readonly budget?: RateBudget;
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
 }
@@ -82,7 +101,15 @@ export async function runHistoricalIngestion(
   deps: IngestionDeps,
   options: IngestionOptions = {},
 ): Promise<IngestionRunResult> {
-  const { provider, repositories = null, tracker, now = Date.now, sleep = defaultSleep } = deps;
+  const {
+    provider,
+    repositories = null,
+    tracker,
+    asset,
+    budget,
+    now = Date.now,
+    sleep = defaultSleep,
+  } = deps;
   const {
     maxRetries = DEFAULT_INGESTION_OPTIONS.maxRetries,
     baseBackoffMs = DEFAULT_INGESTION_OPTIONS.baseBackoffMs,
@@ -184,10 +211,16 @@ export async function runHistoricalIngestion(
       return finish('partial');
     }
 
-    // Rate limiting: space requests to the provider's documented budget.
-    const sinceLast = now() - lastRequestAt;
-    if (lastRequestAt !== 0 && sinceLast < minIntervalMs) {
-      await sleep(minIntervalMs - sinceLast);
+    // Rate limiting. When the caller supplies a provider-scoped budget, every
+    // concurrent run against that provider queues through the SAME one; the
+    // local fallback below is correct only for a single run (see R15).
+    if (budget) {
+      await budget.acquire();
+    } else {
+      const sinceLast = now() - lastRequestAt;
+      if (lastRequestAt !== 0 && sinceLast < minIntervalMs) {
+        await sleep(minIntervalMs - sinceLast);
+      }
     }
 
     let attempt = 0;
@@ -243,7 +276,7 @@ export async function runHistoricalIngestion(
           if (last !== null) coveredTo = coveredTo === null ? last : Math.max(coveredTo, last);
 
           if (repositories) {
-            candlesStored += await persist(repositories, clean, request.symbol);
+            candlesStored += await persist(repositories, clean, request.symbol, asset);
           }
         }
 
@@ -279,22 +312,37 @@ export async function runHistoricalIngestion(
   return finish('completed');
 }
 
-/** Ensures the asset row exists, then writes the batch idempotently. */
+/**
+ * Ensures the asset row exists, then writes the batch idempotently.
+ *
+ * The descriptor is supplied by the caller, which resolves it from the
+ * catalogue. This used to assert `assetClass: 'crypto', pricePrecision: 2` for
+ * every instrument it created — harmless while BinaryAI served one crypto pair,
+ * and wrong the moment it served anything else: EUR/USD would have been stored
+ * as crypto and rendered to two decimals.
+ *
+ * The upsert runs unconditionally rather than only on a missing row, so an
+ * instrument stored before the catalogue existed gains its metadata on the next
+ * ingest instead of keeping stale values forever. The repository COALESCEs, so
+ * a caller with partial metadata cannot blank out what is already known.
+ */
 async function persist(
   repositories: Repositories,
   series: CandleSeries,
   symbol: string,
+  asset: MarketAsset | undefined,
 ): Promise<number> {
-  const existing = await repositories.assets.findBySymbol(symbol);
-  if (!existing) {
-    await repositories.assets.upsert({
+  await repositories.assets.upsert(
+    asset ?? {
+      // No descriptor: record the symbol and say plainly that its class is not
+      // known. Guessing 'crypto' here is what produced mislabelled rows.
       symbol,
       displayName: symbol,
-      assetClass: 'crypto',
+      assetClass: 'unknown',
       pricePrecision: 2,
       isOtc: false,
-    });
-  }
+    },
+  );
   return repositories.candles.upsertSeries(series);
 }
 

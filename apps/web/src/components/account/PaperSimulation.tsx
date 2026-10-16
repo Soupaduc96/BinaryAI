@@ -61,9 +61,9 @@ export function PaperSimulationModule({
   if (!feed.ok) {
     return (
       <Surface aria-labelledby="sim-heading" className="flex flex-col">
-        <ModuleHeader label="Paper simulation" id="sim-heading" />
+        <ModuleHeader label="Similasyon papye" id="sim-heading" />
         {feed.unauthorized ? (
-          <Locked what="A paper simulation is per account." />
+          <Locked what="Yon similasyon papye se pa kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -85,13 +85,13 @@ export function PaperSimulationModule({
     return (
       <Surface aria-labelledby="sim-heading" className="flex flex-col">
         <ModuleHeader
-          label="Paper simulation"
+          label="Similasyon papye"
           id="sim-heading"
           action={<Chip tone="neutral">simulation off</Chip>}
         />
         <div className="flex flex-1 flex-col gap-4 px-5 py-5">
           <Dormant
-            headline="No simulation model selected"
+            headline="Pa gen modèl similasyon chwazi"
             detail="Outcomes are recorded and exposure is accounted for, but no simulated value is derived from them. Selecting a model states the rules a figure would be computed under."
           />
           {/* The counts are real even with no model, so they are reported. */}
@@ -123,7 +123,7 @@ export function PaperSimulationModule({
   return (
     <Surface aria-labelledby="sim-heading" className="flex flex-col">
       <ModuleHeader
-        label="Paper simulation"
+        label="Similasyon papye"
         id="sim-heading"
         action={<Chip tone="warn">simulated</Chip>}
       />
@@ -150,7 +150,7 @@ export function PaperSimulationModule({
         {/* ---- the figures ---- */}
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
           <DataPair
-            label="Starting units"
+            label="Inite depa"
             value={
               simulation.startingUnits === null ? (
                 <Absent />
@@ -160,7 +160,7 @@ export function PaperSimulationModule({
             }
           />
           <DataPair
-            label="Current simulated units"
+            label="Inite similye aktyèl"
             value={
               simulation.currentUnits === null ? (
                 <Absent />
@@ -170,7 +170,7 @@ export function PaperSimulationModule({
             }
           />
           <DataPair
-            label="Simulated return"
+            label="Retou similye"
             value={
               simulation.simulatedReturn === null ? (
                 <Absent />
@@ -182,7 +182,7 @@ export function PaperSimulationModule({
             }
           />
           <DataPair
-            label="Return"
+            label="Retou"
             value={
               // Null when starting units are zero: a percentage of nothing is
               // undefined, and printing one would be fabricated precision.

@@ -336,3 +336,140 @@ describe('limit enforcement', () => {
     expect(response.statusCode).toBe(400);
   });
 });
+
+/**
+ * Instrument identity on paper positions.
+ *
+ * Multi-asset support makes a previously theoretical bug reachable: with one
+ * instrument, "which instrument is this position on" had exactly one possible
+ * answer. With thirty-six it does not, and a position that reported the wrong
+ * one would misattribute exposure, settlement and every ledger entry behind it.
+ *
+ * Nothing about risk or settlement semantics changes here — these tests assert
+ * that the instrument travels correctly through machinery that already worked.
+ */
+describe('instrument identity', () => {
+  it('takes the position instrument from the SIGNAL, never from the request', async () => {
+    // The client sends a signal id and a size. It does not get to name an
+    // instrument, so it cannot open an ETH position against a BTC signal.
+    const user = await signUp('identity-source@example.com');
+    const ethSignal = await makeSignal({ asset: 'ETHUSD' });
+
+    const response = await openPosition(user.cookie, {
+      signalId: ethSignal,
+      actionKey: 'identity-source',
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().position.assetSymbol).toBe('ETHUSD');
+  });
+
+  it('keeps two instruments' + ' apart on the same account', async () => {
+    const user = await signUp('identity-two@example.com');
+    await setPolicy(user.cookie, { limits: { maxOpenPositions: 5 } });
+
+    const btc = await makeSignal({ asset: 'BTCUSD' });
+    const eth = await makeSignal({ asset: 'ETHUSD' });
+    const gold = await makeSignal({ asset: 'XAUUSD' });
+
+    for (const [signal, key] of [
+      [btc, 'identity-two-btc'],
+      [eth, 'identity-two-eth'],
+      [gold, 'identity-two-gold'],
+    ] as const) {
+      const created = await openPosition(user.cookie, { signalId: signal, actionKey: key });
+      expect(created.statusCode).toBe(201);
+    }
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/accounts/me/positions',
+      headers: { cookie: user.cookie },
+    });
+
+    const positions = listed.json().positions as { assetSymbol: string; signalId: string }[];
+    const symbols = positions.map((position) => position.assetSymbol).sort();
+    expect(symbols).toEqual(['BTCUSD', 'ETHUSD', 'XAUUSD']);
+
+    // Each position points at its OWN signal. A shared or swapped signal id is
+    // how a BTC position starts settling against a gold price.
+    expect(new Set(positions.map((position) => position.signalId)).size).toBe(3);
+  });
+
+  it('does not let an idempotency key collide across instruments', async () => {
+    // The unique index is (account, signal, action_key). The same key on two
+    // DIFFERENT signals is two distinct actions and both must commit —
+    // otherwise a client retrying with a stable key could never open a second
+    // instrument's position.
+    const user = await signUp('identity-key@example.com');
+    await setPolicy(user.cookie, { limits: { maxOpenPositions: 5 } });
+
+    const btc = await makeSignal({ asset: 'BTCUSD' });
+    const eth = await makeSignal({ asset: 'ETHUSD' });
+
+    const first = await openPosition(user.cookie, { signalId: btc, actionKey: 'shared-key' });
+    const second = await openPosition(user.cookie, { signalId: eth, actionKey: 'shared-key' });
+
+    expect(first.statusCode).toBe(201);
+    expect(second.statusCode).toBe(201);
+    expect(first.json().position.assetSymbol).toBe('BTCUSD');
+    expect(second.json().position.assetSymbol).toBe('ETHUSD');
+  });
+
+  it('attributes each ledger entry to its own position', async () => {
+    // The ledger reaches an instrument only through position_id. This is the
+    // assertion that the link is per-position rather than per-account.
+    const user = await signUp('identity-ledger@example.com');
+    await setPolicy(user.cookie, { limits: { maxOpenPositions: 5 } });
+
+    const btc = await makeSignal({ asset: 'BTCUSD' });
+    const eth = await makeSignal({ asset: 'ETHUSD' });
+
+    const btcPosition = (
+      await openPosition(user.cookie, { signalId: btc, actionKey: 'ledger-btc', size: 5 })
+    ).json().position;
+    const ethPosition = (
+      await openPosition(user.cookie, { signalId: eth, actionKey: 'ledger-eth', size: 7 })
+    ).json().position;
+
+    const rows = await context.database.query<{
+      asset_symbol: string;
+      amount: string;
+    }>(
+      `SELECT p.asset_symbol, l.amount
+         FROM paper_ledger_entries l
+         JOIN paper_positions p ON p.id = l.position_id
+        WHERE l.account_id = $1 AND l.type = 'exposure_committed'
+        ORDER BY p.asset_symbol`,
+      [user.accountId],
+    );
+
+    expect(rows.rows.map((row) => row.asset_symbol)).toEqual(['BTCUSD', 'ETHUSD']);
+    // Sizes are not swapped between them.
+    expect(Number(rows.rows[0]?.amount)).toBe(-5);
+    expect(Number(rows.rows[1]?.amount)).toBe(-7);
+    expect(btcPosition.assetSymbol).toBe('BTCUSD');
+    expect(ethPosition.assetSymbol).toBe('ETHUSD');
+  });
+
+  it('enforces the asset allowlist against the resolved instrument', async () => {
+    // The allowlist is a risk control, and it must be applied to the
+    // instrument the SIGNAL names — not to anything the caller supplies.
+    const user = await signUp('identity-allow@example.com');
+    await setPolicy(user.cookie, { allowedAssets: ['BTCUSD'] });
+
+    const eth = await makeSignal({ asset: 'ETHUSD' });
+    const blocked = await openPosition(user.cookie, {
+      signalId: eth,
+      actionKey: 'identity-allow-eth',
+    });
+    expect(blocked.statusCode).toBe(422);
+
+    const btc = await makeSignal({ asset: 'BTCUSD' });
+    const allowed = await openPosition(user.cookie, {
+      signalId: btc,
+      actionKey: 'identity-allow-btc',
+    });
+    expect(allowed.statusCode).toBe(201);
+  });
+});

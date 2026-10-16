@@ -1,4 +1,5 @@
 import { isUniqueViolation, RecordNotFoundError } from '@binaryai/database';
+import { findInstrument } from '@binaryai/market-data';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../lib/context.js';
@@ -65,13 +66,44 @@ export function registerSignalRoutes(app: FastifyInstance, context: AppContext):
       );
     }
 
+    /*
+     * The instrument filter is RESOLVED, never used as text.
+     *
+     * `?asset=BTC-USD` returned `total: 0` for an instrument holding 218
+     * signals, because the provider spelling was matched literally against the
+     * canonical `BTCUSD` stored on every row. "No signals recorded" for a
+     * live instrument is the worst possible way to be wrong here: it is
+     * indistinguishable from a working, quiet market.
+     *
+     * An unknown symbol is refused rather than answered with an empty list,
+     * matching positions, the ledger and analytics — one unknown symbol cannot
+     * be refused by one endpoint and quietly accepted by another.
+     */
+    let assetScope: string | undefined;
+    if (parsed.data.asset !== undefined) {
+      const instrument = findInstrument(parsed.data.asset);
+      if (!instrument) {
+        return reply
+          .code(404)
+          .send(
+            errorBody(
+              'unknown_instrument',
+              `No instrument named "${parsed.data.asset}" is in the catalogue.`,
+              undefined,
+              request.id,
+            ),
+          );
+      }
+      assetScope = instrument.symbol;
+    }
+
     const query = {
       // Ownership filter for this caller: the shared analysis stream plus
       // anything their own account owns, and nothing belonging to anyone else.
       // Both list() and count() take it, so the total never describes rows the
       // caller cannot see.
       scope: request.scope,
-      ...(parsed.data.asset === undefined ? {} : { assetSymbol: parsed.data.asset }),
+      ...(assetScope === undefined ? {} : { assetSymbol: assetScope }),
       ...(parsed.data.strategy === undefined ? {} : { strategyKey: parsed.data.strategy }),
       ...(parsed.data.direction === undefined ? {} : { direction: parsed.data.direction }),
       ...(parsed.data.status === undefined ? {} : { status: parsed.data.status }),

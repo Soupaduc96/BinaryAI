@@ -1,5 +1,6 @@
 import type { Timeframe } from './market.js';
 import type { RiskLimits } from './risk.js';
+import type { InstrumentRiskLimits } from './paper.js';
 /**
  * Identity, sessions and access scope.
  *
@@ -163,6 +164,13 @@ export interface Account {
   readonly allowedStrategies: readonly string[] | null;
   readonly allowedTimeframes: readonly Timeframe[] | null;
   readonly allowedAssets: readonly string[] | null;
+  /**
+   * OPTIONAL per-instrument limits, keyed by canonical catalogue symbol.
+   *
+   * NULL means no instrument-specific restriction — exactly the behaviour
+   * every account had before this existed. Account limits remain the ceiling.
+   */
+  readonly perInstrument: Readonly<Record<string, InstrumentRiskLimits>> | null;
   /** Paper accounting units. Not currency and not money held by BinaryAI. */
   readonly allocatedUnits: number;
   /**

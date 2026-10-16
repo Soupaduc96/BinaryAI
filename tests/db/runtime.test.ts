@@ -65,8 +65,15 @@ function alignedPast(minutesAgo: number, from = Date.now()): number {
   return Math.floor((from - minutesAgo * MINUTE) / MINUTE) * MINUTE;
 }
 
-const deps = () => ({ repositories, strategy: trendMomentumStrategy, asset: defaultTestAsset });
-const options = { symbol: SYMBOL, timeframe: '1m' as const };
+/**
+ * Built directly rather than through `resolveAnalysisInstrument`: SYNTH is a
+ * fixture, and the resolver correctly refuses anything the catalogue omits.
+ * The coherence invariant still holds — symbol and asset.symbol agree.
+ */
+const instrument = { symbol: SYMBOL, timeframe: '1m' as const, asset: defaultTestAsset };
+
+const deps = () => ({ repositories, strategy: trendMomentumStrategy, instrument });
+const options = {};
 
 describe('candle finalization', () => {
   it('excludes a bar whose close time has not arrived', () => {
@@ -216,7 +223,7 @@ describe('live analysis', () => {
 
   it('refuses to analyse without persistence, rather than producing an unstorable signal', async () => {
     const result = await runAnalysisCycle(
-      { repositories: null, strategy: trendMomentumStrategy, asset: defaultTestAsset },
+      { repositories: null, strategy: trendMomentumStrategy, instrument },
       options,
     );
     expect(result.analyzed).toBe(false);

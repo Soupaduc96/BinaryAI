@@ -70,7 +70,7 @@ export type ApiResult<T> =
       throttled?: boolean;
     };
 
-async function getJson<T>(path: string): Promise<ApiResult<T>> {
+export async function getJson<T>(path: string): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${apiBaseUrl}${path}`, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -133,8 +133,21 @@ export const fetchStrategies = cache(async (): Promise<ApiResult<StrategySummary
   return result.ok ? { ok: true, data: result.data.strategies } : result;
 });
 
-export const fetchSignals = cache((): Promise<ApiResult<SignalFeed>> =>
-  getJson<SignalFeed>('/v1/signals?limit=10'),
+/**
+ * Signals for ONE instrument.
+ *
+ * D2. This used to take no argument and fetch the newest signals across every
+ * instrument; the workspace then displayed signals[0] as "the decision" beside
+ * a chart for whatever instrument was selected. Invisible while exactly one
+ * instrument was analysed, and a guaranteed mix-up the moment a second is.
+ *
+ * The symbol is now REQUIRED. A caller with no resolved instrument has no
+ * business asking for its decision, and making the parameter optional would
+ * leave the old bug one default away.
+ */
+export const fetchSignals = cache(
+  (assetSymbol: string, limit = 10): Promise<ApiResult<SignalFeed>> =>
+    getJson<SignalFeed>(`/v1/signals?asset=${encodeURIComponent(assetSymbol)}&limit=${limit}`),
 );
 
 export const fetchBacktestRuns = cache((): Promise<ApiResult<BacktestFeed>> =>
@@ -334,22 +347,6 @@ export interface AnalyticsGroupFeed {
   readonly ranking: string;
 }
 
-export const fetchAnalyticsOverview = cache((): Promise<ApiResult<AnalyticsOverviewFeed>> =>
-  getJson<AnalyticsOverviewFeed>('/v1/analytics/overview'),
-);
-
-export const fetchCalibration = cache((): Promise<ApiResult<CalibrationFeed>> =>
-  getJson<CalibrationFeed>('/v1/analytics/calibration'),
-);
-
-export const fetchStrategyAnalytics = cache((): Promise<ApiResult<AnalyticsGroupFeed>> =>
-  getJson<AnalyticsGroupFeed>('/v1/analytics/strategies'),
-);
-
-export const fetchRegimeAnalytics = cache((): Promise<ApiResult<AnalyticsGroupFeed>> =>
-  getJson<AnalyticsGroupFeed>('/v1/analytics/regimes'),
-);
-
 // ----------------------------------------------------------- paper account --
 
 export interface PaperAccountFeed {
@@ -428,7 +425,22 @@ export interface PaperPositionView {
   } | null;
 }
 
-export interface PositionsFeed {
+/**
+ * What SCOPE a feed's rows were drawn from.
+ *
+ * R10. Positions and ledger entries can be read account-wide or for one
+ * instrument, and the two look identical once rendered — a user seeing three
+ * open positions has no way to tell whether that is three in total or three on
+ * EUR/USD. The API states the scope on every response and the UI shows it,
+ * rather than either side inferring it from the presence of a query parameter.
+ */
+export interface FeedScope {
+  readonly scope: 'account' | 'instrument';
+  /** Canonical symbol when instrument-scoped; null when account-wide. */
+  readonly assetSymbol: string | null;
+}
+
+export interface PositionsFeed extends FeedScope {
   readonly positions: readonly PaperPositionView[];
   readonly accounting: string;
 }
@@ -453,8 +465,95 @@ export const fetchRiskPolicy = cache((): Promise<ApiResult<RiskPolicyFeed>> =>
   getJson<RiskPolicyFeed>('/v1/accounts/me/risk'),
 );
 
-export const fetchPositions = cache((): Promise<ApiResult<PositionsFeed>> =>
-  getJson<PositionsFeed>('/v1/accounts/me/positions?limit=12'),
+/**
+ * Paper positions.
+ *
+ * ACCOUNT-WIDE by default, deliberately: an account has one exposure and one
+ * set of open positions, and hiding the ones on other instruments behind the
+ * workspace's current selection would let a user believe they were flat while
+ * exposure sat elsewhere. Pass `assetSymbol` to narrow it; the response says
+ * which scope it answered in either way.
+ */
+export const fetchPositions = cache((assetSymbol?: string): Promise<ApiResult<PositionsFeed>> =>
+  getJson<PositionsFeed>(
+    assetSymbol === undefined
+      ? '/v1/accounts/me/positions?limit=12'
+      : `/v1/accounts/me/positions?limit=12&asset=${encodeURIComponent(assetSymbol)}`,
+  ),
+);
+
+/**
+ * One append-only ledger entry.
+ *
+ * `simulationModelId`/`Version` are present only on `simulated_return` rows,
+ * enforced by a database CHECK: a simulated figure that cannot name the model
+ * that produced it cannot be written. The UI relies on that rather than
+ * re-deriving attribution.
+ */
+export interface LedgerEntry {
+  readonly id: string;
+  readonly type: string;
+  readonly amount: number;
+  readonly positionId: string | null;
+  readonly occurredAt: number;
+  readonly source: string;
+  readonly metadata: Record<string, unknown>;
+  readonly simulationModelId: string | null;
+  readonly simulationModelVersion: string | null;
+}
+
+export interface LedgerFeed extends FeedScope {
+  readonly entries: readonly LedgerEntry[];
+  readonly reason?: string;
+}
+
+/**
+ * The ledger itself, not the summary derived from it.
+ *
+ * `GET /v1/accounts/:id/ledger` has existed since Phase 5 with no caller — the
+ * dashboard only ever showed totals computed from the account. The Ledger
+ * workspace is what surfaces the entries those totals are made of.
+ */
+export interface RuntimeFeed {
+  readonly runtime: {
+    readonly analysis: {
+      readonly enabled: boolean;
+      /** Null when analysis is not running; never a guess. */
+      readonly symbol: string | null;
+      readonly timeframe: string | null;
+      readonly ticks: number;
+      readonly lastError: string | null;
+    };
+    readonly ingestion: { readonly enabled: boolean; readonly ticks: number };
+    readonly settlement: { readonly enabled: boolean; readonly settledTotal: number };
+    readonly maintenance: { readonly enabled: boolean; readonly sessionsDeleted: number | null };
+  };
+}
+
+/**
+ * Worker state.
+ *
+ * Needed by Analysis to name the instrument the engine actually runs on, which
+ * is not necessarily the one being viewed — the difference is stated in the UI
+ * rather than glossed over.
+ */
+export const fetchRuntimeStatus = cache((): Promise<ApiResult<RuntimeFeed>> =>
+  getJson<RuntimeFeed>('/v1/runtime/status'),
+);
+
+/**
+ * Ledger entries. Account-wide by default, for the same reason as positions.
+ *
+ * An instrument-scoped read reaches entries THROUGH their position, so
+ * allocations, adjustments and resets — which belong to no instrument — are
+ * correctly absent from it. The scope label is what makes that legible.
+ */
+export const fetchLedger = cache((assetSymbol?: string): Promise<ApiResult<LedgerFeed>> =>
+  getJson<LedgerFeed>(
+    assetSymbol === undefined
+      ? '/v1/accounts/me/ledger?limit=50'
+      : `/v1/accounts/me/ledger?limit=50&asset=${encodeURIComponent(assetSymbol)}`,
+  ),
 );
 
 export const fetchRiskEvents = cache((): Promise<ApiResult<RiskEventsFeed>> =>

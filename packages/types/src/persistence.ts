@@ -77,6 +77,24 @@ export interface CandleRepository {
   findRange(query: CandleRangeQuery): Promise<CandleSeries | null>;
   latest(assetSymbol: string, timeframe: Timeframe, limit: number): Promise<CandleSeries | null>;
   count(assetSymbol: string, timeframe: Timeframe): Promise<number>;
+  /**
+   * Coverage per instrument: which timeframes actually hold candles, and how
+   * recent the newest one is.
+   *
+   * One grouped query rather than a count per timeframe, because the instrument
+   * picker needs this for every catalogue entry at once and would otherwise
+   * issue one round trip per instrument per timeframe.
+   */
+  coverage(): Promise<readonly CandleCoverage[]>;
+}
+
+/** Stored-candle coverage for one instrument and timeframe. */
+export interface CandleCoverage {
+  readonly assetSymbol: string;
+  readonly timeframe: Timeframe;
+  readonly candles: number;
+  /** Epoch ms of the newest stored candle. */
+  readonly lastCandleAt: number;
 }
 
 // -------------------------------------------------------------- strategies --
@@ -281,6 +299,12 @@ export interface BacktestRunSummary {
   readonly datasetLabel: string;
   readonly datasetSource: MarketDataSource;
   readonly assetSymbol: string;
+  /**
+   * Whether `assetSymbol` is a resolved catalogue instrument or the caller's
+   * own label. R8 — see DatasetDescriptor. Runs stored before this was
+   * captured read back as 'unresolved'.
+   */
+  readonly instrumentIdentity: 'catalogue' | 'unresolved';
   readonly timeframe: Timeframe;
   readonly candleCount: number;
   readonly trades: number;
@@ -427,6 +451,13 @@ export interface AccountRepository {
 // -------------------------------------------------------- paper positions --
 
 export interface PositionQuery {
+  /**
+   * Canonical instrument symbol. R10.
+   *
+   * Resolved by the ROUTE through the catalogue, so this is never caller text.
+   * Absent means account-wide, which stays the default.
+   */
+  readonly assetSymbol?: string;
   readonly status?: AccountPaperPositionStatus;
   readonly signalId?: string;
   readonly limit?: number;
@@ -441,6 +472,17 @@ export interface AccountActivitySnapshot {
   readonly consecutiveLosses: number;
   readonly lastLossAt: number | null;
   readonly settledPositions: number;
+  /**
+   * Open positions on the instrument named in the query, when one was named.
+   *
+   * R4. Null when the caller asked for no instrument, which is different from
+   * zero: `0` means "none open on that instrument", null means "not asked".
+   */
+  readonly instrumentOpenPositions: number | null;
+  /** Units committed to that instrument inside the window. Null when unasked. */
+  readonly instrumentExposureInWindow: number | null;
+  /** Most recent settled loss on that instrument. Null when unasked or none. */
+  readonly instrumentLastLossAt: number | null;
 }
 
 export interface PaperPositionRepository {
@@ -457,7 +499,19 @@ export interface PaperPositionRepository {
   list(accountId: string, query?: PositionQuery): Promise<readonly AccountPaperPosition[]>;
   count(accountId: string, status?: AccountPaperPositionStatus): Promise<number>;
   /** Account state for the risk layer, as of `now`. */
-  activity(accountId: string, windowFromMs: number, now: number): Promise<AccountActivitySnapshot>;
+  /**
+   * Account activity, optionally also scoped to one instrument.
+   *
+   * The instrument counts come from the SAME query via FILTER clauses, so
+   * per-instrument risk costs no extra round trip on the hot path of every
+   * position creation.
+   */
+  activity(
+    accountId: string,
+    windowFromMs: number,
+    now: number,
+    assetSymbol?: string,
+  ): Promise<AccountActivitySnapshot>;
   /** Positions past expiry that still need settling, across all accounts. */
   findExpired(before: number, limit?: number): Promise<readonly AccountPaperPosition[]>;
   /**
@@ -513,7 +567,20 @@ export interface SimulationModelRepository {
 export interface LedgerRepository {
   /** Appends an entry. There is no update and no delete, by design and by trigger. */
   append(entry: NewLedgerEntry): Promise<LedgerEntry>;
-  list(accountId: string, limit?: number, offset?: number): Promise<readonly LedgerEntry[]>;
+  /**
+   * Ledger entries for an account, optionally scoped to one instrument.
+   *
+   * R10. Instrument filtering JOINS THROUGH `position_id` rather than matching
+   * text: a ledger entry has no symbol of its own, and its instrument is a
+   * fact about the position it accounts for. Allocations and adjustments carry
+   * no position, so an instrument-scoped query correctly excludes them.
+   */
+  list(
+    accountId: string,
+    limit?: number,
+    offset?: number,
+    assetSymbol?: string,
+  ): Promise<readonly LedgerEntry[]>;
   /** Sum of every entry. The balance is derived, never stored. */
   balance(accountId: string): Promise<number>;
   /** Units currently committed to active positions, from the ledger. */

@@ -23,6 +23,18 @@ const asset: MarketAsset = {
   isOtc: false,
 };
 
+/**
+ * The analysis worker's instrument set.
+ *
+ * Built directly: SYNTH is a fixture, and `resolveAnalysisInstrument` refuses
+ * anything the catalogue does not list. Symbol and asset.symbol agree, which is
+ * the invariant the cycle enforces.
+ */
+const analysisInstruments = [{ symbol: 'SYNTH', timeframe: '1m' as const, asset }];
+/** The ingestion plan. Same single fixture — these tests are about worker
+ *  isolation, not about multi-instrument routing. */
+const ingestionInstruments = analysisInstruments;
+
 const strategy = { id: 'test-strategy' } as unknown as Strategy;
 
 /** A provider that always fails, standing in for an exchange outage. */
@@ -77,6 +89,8 @@ describe('worker isolation', () => {
       repositories: repositories({ sessions }),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
       onEvent: (event) => events.push(event),
     });
 
@@ -103,6 +117,8 @@ describe('worker isolation', () => {
       }),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     await runtime.runOnce();
@@ -118,6 +134,8 @@ describe('worker isolation', () => {
       repositories: repositories(),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     await runtime.runOnce();
@@ -141,6 +159,8 @@ describe('worker isolation', () => {
       repositories: repositories(),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     expect((await runtime.status()).maintenance.sessionsDeleted).toBeNull();
@@ -157,6 +177,8 @@ describe('worker isolation', () => {
       repositories: null, // nor can anything else
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     const status = await runtime.status();
@@ -174,6 +196,8 @@ describe('worker isolation', () => {
       repositories: repositories(),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     runtime.start();
@@ -200,6 +224,8 @@ describe('worker isolation', () => {
       }),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     runtime.start();
@@ -213,6 +239,8 @@ describe('worker isolation', () => {
       repositories: repositories(),
       strategy,
       asset,
+      analysisInstruments,
+      ingestionInstruments,
     });
 
     runtime.start();

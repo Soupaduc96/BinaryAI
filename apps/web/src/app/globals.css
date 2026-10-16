@@ -1,32 +1,44 @@
 @import 'tailwindcss';
 
 /*
- * BinaryAI — terminal design system.
+ * BinaryAI — the Aurora design system.
+ * PAD DIGITAL LLC.
  *
- * A market-intelligence terminal, not a dashboard. The foundation is committed
- * dark: this is an instrument that runs for hours in a focused environment, and
- * a light variant would dilute the identity rather than serve it.
+ * An AI operating system for market analysis, not a dashboard. Three ideas
+ * carry the whole visual language:
  *
- * Colour discipline: the palette is almost entirely achromatic. Saturation is a
- * finite signal budget — spending it on decoration leaves nothing to mark a
- * CALL, a PUT, or a blocked risk check. One accent (iris), four semantics
- * (bull / bear / warn / info), and nothing else carries colour.
+ *  1. DEPTH INSTEAD OF BOXES. Surfaces are separated by luminance and a single
+ *     hairline, never by shadow-heavy floating cards. The workspace should read
+ *     as one machined instrument with regions, not as tiles scattered on a page.
  *
- * The accent is iris — a desaturated periwinkle rather than the corporate blue
- * every SaaS dashboard reaches for, and lighter than a saturated violet so it
- * reads as calm rather than energetic. It sits far from bull-green and
- * bear-red in hue, so an interactive element is never mistaken for a market
- * signal: the reason the choice is functional rather than cosmetic.
+ *  2. LIGHT IS MEANING. The palette is a cool midnight-navy field, almost
+ *     achromatic, so that the small amount of luminous colour in it is always
+ *     carrying information — a decision, a direction, a state. Saturation is a
+ *     budget; decoration is not allowed to spend it.
+ *
+ *  3. PRECISION READS AS TRUST. Numbers are tabular and monospaced, labels are
+ *     small and letterspaced, and every measurement sits on a shared baseline
+ *     rhythm. A figure that shifts as it updates undermines the instrument more
+ *     than any styling can repair.
+ *
+ * Accent architecture: electric blue is the primary interactive and identity
+ * colour, cyan marks live/verified system state, and indigo-violet is the AI
+ * layer — reserved almost entirely for the decision surface, so the
+ * intelligence of the product has a colour nothing else borrows. All three sit
+ * far from bull-green and bear-red in hue, so an interactive element can never
+ * be mistaken for a market direction.
  */
 
 @theme inline {
   --color-base: var(--base);
+  --color-void: var(--void);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
   --color-surface-4: var(--surface-4);
   --color-edge: var(--edge);
   --color-edge-strong: var(--edge-strong);
+  --color-edge-bright: var(--edge-bright);
   --color-text-1: var(--text-1);
   --color-text-2: var(--text-2);
   --color-text-3: var(--text-3);
@@ -35,6 +47,11 @@
   --color-accent-dim: var(--accent-dim);
   --color-accent-muted: var(--accent-muted);
   --color-accent-line: var(--accent-line);
+  --color-cyan: var(--cyan);
+  --color-cyan-dim: var(--cyan-dim);
+  --color-iris: var(--iris);
+  --color-iris-strong: var(--iris-strong);
+  --color-iris-dim: var(--iris-dim);
   --color-bull: var(--bull);
   --color-bear: var(--bear);
   --color-warn: var(--warn);
@@ -45,65 +62,139 @@
 :root {
   color-scheme: dark;
 
-  /* Near-black carrying a trace of navy, then layered graphite. Each step is
-     small: depth should be felt as separation, not seen as a colour change. */
-  --base: #07080d;
-  --surface-1: #0b0d14;
-  --surface-2: #10131c;
-  --surface-3: #161a25;
-  /* One step brighter, for the few surfaces that must sit above a module. */
-  --surface-4: #1c2130;
+  /*
+   * The field. A midnight navy rather than a neutral graphite: the blue cast is
+   * what separates this from every black-and-grey admin theme, and it gives the
+   * electric accents something to sit inside rather than on top of.
+   *
+   * Each step is deliberately small. Depth must be FELT as separation and never
+   * SEEN as a colour change — the moment a reader notices the step, the surface
+   * has become decoration.
+   */
+  --void: #04060e;
+  --base: #070a15;
+  --surface-1: #0b0f1d;
+  --surface-2: #101527;
+  --surface-3: #161d33;
+  --surface-4: #1e2740;
 
-  /* Hairlines. Fine enough to structure without drawing attention. */
-  --edge: #1a1e2a;
-  --edge-strong: #2a3040;
+  /* Hairlines. Fine enough to structure without drawing attention; the bright
+     step exists only for a focused or selected edge. */
+  --edge: #18203a;
+  --edge-strong: #26314f;
+  --edge-bright: #34426a;
 
   /* Text ramp — 1 is primary, 3 is metadata. All ≥4.6:1 on surface-1. */
-  --text-1: #eceef5;
-  --text-2: #a8aec0;
-  --text-3: #6f7689;
+  --text-1: #eef1f8;
+  --text-2: #a6b0c9;
+  --text-3: #6b7692;
 
-  /* The BinaryAI accent: iris. Reserved for interaction and for the AI
-     decision — the two things a user must be able to find instantly.
-     Deliberately low in saturation: an accent used for authority should not
-     compete with the semantics that mark a market direction. */
-  --accent: #8ba4ff;
-  --accent-strong: #a9bcff;
-  --accent-muted: #6d84d8;
-  --accent-dim: rgb(139 164 255 / 0.1);
-  --accent-line: rgb(139 164 255 / 0.28);
+  /*
+   * Electric blue: identity and interaction. Every control, link and focus ring.
+   * Bright enough to feel powered, restrained enough to sit under long reading.
+   */
+  --accent: #3d8bff;
+  --accent-strong: #6aa6ff;
+  --accent-muted: #2f6ed4;
+  --accent-dim: rgb(61 139 255 / 0.1);
+  --accent-line: rgb(61 139 255 / 0.3);
 
-  /* Semantics. Saturated enough to read at 11px, restrained enough that a win
-     is not a celebration. */
-  /* Desaturated a step from the previous palette: a win is information, not a
-     celebration, and a saturated green at 11px reads as a casino. */
-  --bull: #3ecf8e;
-  --bear: #e5604c;
-  --warn: #e0a33c;
+  /* Cyan: verified, live, current. The colour of a system that is answering. */
+  --cyan: #22d3ee;
+  --cyan-dim: rgb(34 211 238 / 0.12);
+
+  /* Indigo-violet: the AI layer. Reserved for the decision surface, so nothing
+     else in the product wears the colour of the machine's judgement. */
+  --iris: #8b7cf6;
+  --iris-strong: #a894ff;
+  --iris-dim: rgb(139 124 246 / 0.12);
+
+  /* Market semantics. Saturated enough to read at 11px, restrained enough that
+     a win is information rather than a celebration. */
+  --bull: #34d399;
+  --bear: #f2603c;
+  --warn: #f0a93b;
   /* Informational only: never a market direction, never a health verdict. */
   --info: #38bdf8;
+
+  /* Motion. One duration scale, all of it under the threshold where a
+     transition starts to feel like waiting. */
+  --t-fast: 110ms;
+  --t-base: 170ms;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /*
- * Atmosphere. A single very low-opacity wash keeps the page from reading as
- * flat black with rectangles floating on it. It must stay imperceptible as a
- * "gradient" and register only as depth.
+ * Atmosphere.
+ *
+ * Three washes, none of which should ever be identifiable as "a gradient".
+ * They exist so the page reads as a lit room rather than as flat black with
+ * rectangles on it. Fixed attachment keeps the light still while content
+ * scrolls past it, which is what makes it read as environment.
  */
 body {
   background-color: var(--base);
   background-image:
-    /* One iris wash behind the workspace, where the decision lives. */
-    radial-gradient(1200px 560px at 22% -14%, rgb(139 164 255 / 0.05), transparent 64%),
-    /* A cooler counterweight at the far edge, so the wash reads as light in a
-       room rather than as a gradient applied to a page. */
-    radial-gradient(900px 500px at 100% 4%, rgb(120 160 255 / 0.02), transparent 58%),
-    /* A near-invisible vertical lift off the floor. Under 2% at its strongest;
-       it registers as depth and disappears the moment you look for it. */
-    linear-gradient(180deg, rgb(255 255 255 / 0.014), transparent 42%);
+    /* Electric blue over the workspace, where the decision lives. */
+    radial-gradient(1250px 620px at 18% -16%, rgb(61 139 255 / 0.07), transparent 62%),
+    /* Violet counterweight at the far edge: the AI layer, felt not seen. */
+    radial-gradient(1000px 520px at 102% 2%, rgb(139 124 246 / 0.05), transparent 58%),
+    /* A cyan floor-glow, barely above nothing, to close the composition. */
+    radial-gradient(1400px 420px at 50% 108%, rgb(34 211 238 / 0.03), transparent 60%),
+    /* A near-invisible vertical lift off the floor. */
+    linear-gradient(180deg, rgb(255 255 255 / 0.016), transparent 38%);
   background-attachment: fixed;
   color: var(--text-1);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ─────────────────────────────────────────────────────────── typography ── */
+
+/*
+ * Hierarchy is carried by SIZE and WEIGHT, so colour stays free to carry
+ * meaning. Four display steps is all this interface needs.
+ */
+.display-decision {
+  font-size: clamp(38px, 4.4vw, 58px);
+  line-height: 0.92;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.display-value {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Page title. One per route, and the largest non-decision text on the page. */
+.page-title {
+  font-size: clamp(21px, 2.2vw, 27px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--text-1);
+}
+
+/* Section eyebrow — the structural label of the whole system. */
+.eyebrow {
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* A labelled telemetry value: small caps label above a monospace figure. */
+.telemetry-label {
+  font-size: 9.5px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 /* Numeric market data: tabular so values never reflow as they update. */
@@ -113,75 +204,151 @@ body {
   font-feature-settings: 'zero' 1;
 }
 
-/* Section eyebrow — the terminal's structural label. */
-.eyebrow {
-  font-size: 10.5px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
+/* ────────────────────────────────────────────────────────────── panels ── */
 
 /*
- * Typographic hierarchy.
+ * The panel system.
  *
- * Hierarchy is carried by SIZE AND WEIGHT rather than by colour or decoration,
- * so that colour stays available for meaning. Three display steps is all this
- * interface needs: the decision, a primary value, and everything else.
+ * Six variants, each earning its difference. The rule that keeps this from
+ * becoming "everything is a card": a panel is only boxed when the box carries
+ * meaning, and the DEFAULT panel is the quietest thing on the page.
  */
-.display-decision {
-  font-size: clamp(38px, 4.4vw, 56px);
-  line-height: 0.94;
-  font-weight: 600;
-  letter-spacing: -0.028em;
-}
-.display-value {
-  font-size: 28px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: -0.018em;
-}
 
-/*
- * A labelled telemetry value: small caps label above a monospace figure.
- * Used wherever a market or account number needs to read as an instrument
- * reading rather than as body copy.
- */
-.telemetry-label {
-  font-size: 9.5px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-/*
- * The shared workspace surface.
- *
- * Deliberately NOT a floating card: no shadow, one hairline, and a background
- * only one step off the base. Panels should read as regions of one instrument
- * rather than as separate objects scattered on a page.
- */
+/* Base: a region of the instrument. No shadow, one hairline, one step of lift. */
 .panel {
   background-color: var(--surface-1);
   border: 1px solid var(--edge);
-  border-radius: 10px;
+  border-radius: 12px;
+  transition:
+    border-color var(--t-base) var(--ease),
+    background-color var(--t-base) var(--ease);
 }
 
 /*
- * Micro-interaction.
- *
- * Panels lift their hairline very slightly on hover. It is almost subliminal by
- * design: the point is that the surface acknowledges the pointer, not that it
- * animates. 120ms is below the threshold where a transition reads as motion.
+ * Secondary: a panel that should RECEDE. Used for supporting modules so the
+ * page has a foreground and a background rather than eight equal cards.
  */
-.panel {
-  transition: border-color 120ms ease;
+.panel-secondary {
+  background-color: rgb(11 15 29 / 0.5);
+  border-color: rgb(24 32 58 / 0.7);
+}
+
+/*
+ * Primary: the surface a reader should land on first. A hairline of light
+ * across the top edge reads as illumination rather than as a border.
+ */
+.panel-primary {
+  background-color: var(--surface-1);
+  border-color: var(--edge-strong);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.045),
+    0 20px 50px -34px rgb(0 0 0 / 0.9);
+}
+
+/*
+ * Elevated: the AI decision, and nothing else. The violet wash is the one
+ * place the intelligence layer is allowed to show its colour.
+ */
+.panel-elevated {
+  background-color: var(--surface-1);
+  border-color: var(--edge-strong);
+  background-image: linear-gradient(180deg, rgb(139 124 246 / 0.07), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.055),
+    0 24px 60px -36px rgb(0 0 0 / 0.95);
+}
+
+/* Metric: a dense figure surface. Tighter radius so it reads as a readout. */
+.panel-metric {
+  background-color: rgb(16 21 39 / 0.72);
+  border: 1px solid var(--edge);
+  border-radius: 9px;
+}
+
+/* Warning: something the reader must not miss, without shouting. */
+.panel-warn {
+  background-color: rgb(240 169 59 / 0.06);
+  border-color: rgb(240 169 59 / 0.28);
+}
+
+/* Interactive: a panel that is itself a control. */
+.panel-interactive {
+  cursor: pointer;
 }
 .panel:hover {
   border-color: var(--edge-strong);
+}
+.panel-interactive:hover {
+  border-color: var(--accent-line);
+  background-color: var(--surface-2);
+}
+
+/*
+ * A hairline of accent light along the top of a panel. Applied to the surfaces
+ * that lead a page, it suggests the panel is lit from above rather than
+ * outlined — which is the difference between depth and a border.
+ */
+.panel-lit {
+  position: relative;
+}
+.panel-lit::before {
+  content: '';
+  position: absolute;
+  inset-inline: 12%;
+  top: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-line), transparent);
+  pointer-events: none;
+}
+
+/* ────────────────────────────────────────────────────────────── status ── */
+
+/*
+ * Status is never carried by colour alone. Every state pairs a hue with a
+ * distinct GLYPH SHAPE, so the system survives greyscale, colour blindness and
+ * a photocopier. The shapes are set in the StatusGlyph component; these tokens
+ * are the surfaces they sit on.
+ */
+.status-ok {
+  color: var(--bull);
+  border-color: rgb(52 211 153 / 0.3);
+  background-color: rgb(52 211 153 / 0.08);
+}
+.status-live {
+  color: var(--cyan);
+  border-color: rgb(34 211 238 / 0.3);
+  background-color: rgb(34 211 238 / 0.08);
+}
+.status-warn {
+  color: var(--warn);
+  border-color: rgb(240 169 59 / 0.3);
+  background-color: rgb(240 169 59 / 0.08);
+}
+.status-bad {
+  color: var(--bear);
+  border-color: rgb(242 96 60 / 0.32);
+  background-color: rgb(242 96 60 / 0.08);
+}
+.status-idle {
+  color: var(--text-3);
+  border-color: var(--edge-strong);
+  background-color: rgb(16 21 39 / 0.6);
+}
+.status-info {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background-color: var(--accent-dim);
+}
+
+/* ──────────────────────────────────────────────────────── interaction ── */
+
+:where(button, a[href], summary, select, input, textarea) {
+  transition:
+    background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
 }
 
 /* Controls acknowledge a press without bouncing. */
@@ -189,44 +356,91 @@ body {
   transform: translateY(0.5px);
 }
 
-:where(button, a[href], summary) {
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
-}
-
-/* The one surface allowed to sit visibly above the others: the AI decision. */
-.panel-elevated {
-  background-image: linear-gradient(180deg, rgb(139 164 255 / 0.045), transparent 38%);
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.035),
-    0 18px 40px -28px rgb(0 0 0 / 0.9);
-}
-
 /*
- * Chart chrome for the dormant canvas. This is an empty coordinate grid — the
- * furniture of a chart, never data. No candles, no series, nothing that could
- * be mistaken for a price.
+ * One focus treatment across the entire product, and it is unmistakable.
+ * `:focus-visible` keeps it invisible to pointer users and unmissable to
+ * keyboard users — the group for whom it is the only orientation available.
  */
-.chart-grid {
-  background-image:
-    linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
-  background-size: 72px 56px;
-  background-position: center;
-}
-
-/* One focus treatment. Unmistakable for keyboard, invisible for pointer.
-   `input` and `textarea` belong here too: they were omitted, and the text
-   fields styled focus only as a 50%-opacity border tint after setting
-   `outline-none` -- which is a weak indicator for a keyboard user and the one
-   place it matters most, since the sign-in fields are the first thing reached
-   by Tab. */
 :where(a, button, select, summary, input, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 4px;
+}
+
+/* A disabled control must LOOK unavailable, not merely be unavailable. */
+:where(button, a, select, input):disabled,
+[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ────────────────────────────────────────────────────────────── motion ── */
+
+/*
+ * Entrance motion, used sparingly: panels settle in rather than appearing.
+ * 260ms with a decelerating curve reads as the interface arriving, not as an
+ * animation being played at the reader.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 260ms var(--ease) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade {
+  animation: fade-in 180ms var(--ease) both;
+}
+
+/* A slow luminous pulse for a genuinely live indicator. Nothing else pulses:
+   motion in a trading interface must mean "this is changing". */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2.4s ease-in-out infinite;
+}
+
+/* A shimmer for loading surfaces — the only place a skeleton is acceptable,
+   because it says "arriving" rather than showing a number that is not real. */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--surface-2);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.045), transparent);
+  animation: shimmer 1.6s infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -234,15 +448,47 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  .skeleton::after {
+    display: none;
+  }
 }
+
+/* ─────────────────────────────────────────────────────────────── chart ── */
+
+/*
+ * Chart chrome for the dormant canvas: an empty coordinate grid. This is the
+ * FURNITURE of a chart and never data — no candles, no series, nothing that
+ * could be mistaken for a price.
+ */
+.chart-grid {
+  background-image:
+    linear-gradient(to right, rgb(61 139 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(61 139 255 / 0.05) 1px, transparent 1px);
+  background-size: 76px 58px;
+  background-position: center;
+}
+
+/* The chart's own environment: slightly deeper than the panel around it, so
+   the plot area reads as a window cut into the surface. */
+.chart-well {
+  background-color: var(--void);
+  background-image: radial-gradient(
+    900px 380px at 50% 0%,
+    rgb(61 139 255 / 0.045),
+    transparent 70%
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── surfaces ── */
 
 summary::-webkit-details-marker {
   display: none;
 }
 
-/* Terminal-grade scrollbars: present when needed, silent otherwise. */
+/* Scrollbars: present when needed, silent otherwise. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--edge-strong) transparent;
@@ -256,4 +502,7 @@ summary::-webkit-details-marker {
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--edge-bright);
 }

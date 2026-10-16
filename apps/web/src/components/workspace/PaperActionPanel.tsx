@@ -134,7 +134,7 @@ export function PaperActionPanel({
   if (!signalId || !actionable) {
     return (
       <Shell>
-        <Headline>No paper action</Headline>
+        <Headline>Pa gen aksyon papye</Headline>
         <p className="text-[12px] leading-relaxed text-text-3">
           {signalId
             ? // The engine declined this signal. The account layer would refuse
@@ -150,14 +150,14 @@ export function PaperActionPanel({
     return (
       <Shell>
         <p className="text-[12px] leading-relaxed text-text-3">
-          Sign in to evaluate this signal against your account risk policy. Paper positions belong
-          to an account.
+          Konekte pou evalye siyal sa a kont règleman risk kont ou. Pozisyon papye apatni to an
+          account.
         </p>
         <a
           href="/signin"
           className="inline-flex h-9 w-fit items-center rounded-[6px] border border-edge-strong px-3 text-[12px] text-text-2 transition-colors hover:border-accent/40 hover:text-text-1"
         >
-          Sign in
+          Konekte
         </a>
       </Shell>
     );
@@ -173,7 +173,7 @@ export function PaperActionPanel({
     const failed = actionability.evaluations.filter((rule) => !rule.passed);
     return (
       <Shell>
-        <Headline tone="warn">No paper action</Headline>
+        <Headline tone="warn">Pa gen aksyon papye</Headline>
         <p className="text-[12px] leading-relaxed text-text-2">
           {OUTCOME_COPY[actionability.outcome] ?? actionability.outcome}
           {actionability.retryAfterMs !== null ? (
@@ -209,33 +209,33 @@ export function PaperActionPanel({
   if (phase.kind === 'confirming') {
     return (
       <Shell>
-        <Headline>Confirm paper action</Headline>
+        <Headline>Konfime aksyon papye</Headline>
         <dl className="flex flex-col divide-y divide-edge/70 rounded-[6px] border border-edge bg-surface-2">
-          <Line label="Instrument" value={instrument ?? '—'} />
-          <Line label="Timeframe" value={timeframe ?? '—'} />
+          <Line label="Enstriman" value={instrument ?? '—'} />
+          <Line label="Entèval" value={timeframe ?? '—'} />
           <Line
-            label="Direction"
+            label="Direksyon"
             value={
               <span className={direction === 'call' ? 'text-bull' : 'text-bear'}>
                 {direction ? `PAPER ${direction.toUpperCase()}` : '—'}
               </span>
             }
           />
-          <Line label="Requested size" value={`${units(numericSize)} units`} />
+          <Line label="Gwosè mande" value={`${units(numericSize)} units`} />
           <Line
-            label="Current exposure"
+            label="Ekspozisyon aktyèl"
             value={capacity ? `${units(capacity.committedUnits)} units` : '—'}
           />
           <Line
-            label="Resulting exposure"
+            label="Ekspozisyon rezilta"
             value={resulting === null ? '—' : `${units(resulting)} units`}
           />
-          <Line label="Expiry" value={expirySeconds === null ? '—' : `${expirySeconds}s`} />
+          <Line label="Ekspirasyon" value={expirySeconds === null ? '—' : `${expirySeconds}s`} />
           <Line
-            label="Risk decision"
+            label="Desizyon risk"
             value={
               actionability?.allowed ? (
-                <span className="text-bull">Permitted</span>
+                <span className="text-bull">Pèmèt</span>
               ) : (
                 <span className="text-text-3">—</span>
               )
@@ -244,12 +244,12 @@ export function PaperActionPanel({
           {/* A simulated figure is never produced without naming the model, so
               the model is named BEFORE the action that will produce one. */}
           <Line
-            label="Simulation model"
+            label="Modèl similasyon"
             value={
               model ? (
                 `${model.name} v${model.version}`
               ) : (
-                <span className="text-text-3">No simulation model</span>
+                <span className="text-text-3">Pa gen modèl similasyon</span>
               )
             }
           />
@@ -266,7 +266,7 @@ export function PaperActionPanel({
             disabled={busy}
             className="h-9 rounded-[6px] border border-accent/30 bg-accent-dim px-3 text-[12px] font-medium text-accent transition-colors hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? 'Working…' : 'Confirm paper action'}
+            {busy ? 'Ap travay…' : 'Konfime aksyon papye'}
           </button>
           <button
             type="button"
@@ -274,7 +274,7 @@ export function PaperActionPanel({
             disabled={busy}
             className="h-9 rounded-[6px] border border-edge-strong px-3 text-[12px] text-text-2 transition-colors hover:border-accent/40 hover:text-text-1 disabled:opacity-50"
           >
-            Cancel
+            Anile
           </button>
         </div>
       </Shell>
@@ -292,7 +292,7 @@ export function PaperActionPanel({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-5">
           <Field
-            label="Direction"
+            label="Direksyon"
             value={
               <span className={direction === 'call' ? 'text-bull' : 'text-bear'}>
                 {direction ? `PAPER ${direction.toUpperCase()}` : '—'}
@@ -331,7 +331,7 @@ export function PaperActionPanel({
           </div>
 
           <Field
-            label="Current exposure"
+            label="Ekspozisyon aktyèl"
             value={
               capacity ? (
                 <span className="tnum">{units(capacity.committedUnits)} units</span>
@@ -341,7 +341,7 @@ export function PaperActionPanel({
             }
           />
           <Field
-            label="After action"
+            label="Apre aksyon"
             value={
               resulting === null || !capacity ? (
                 <span className="text-text-3">—</span>
@@ -354,7 +354,7 @@ export function PaperActionPanel({
             }
           />
           <Field
-            label="Simulation model"
+            label="Modèl similasyon"
             value={
               model ? (
                 <span className="truncate">
@@ -363,7 +363,7 @@ export function PaperActionPanel({
               ) : (
                 // Not a default and not a zero: with no model the outcome
                 // produces no simulated figure at all.
-                <span className="text-text-3">No simulation model</span>
+                <span className="text-text-3">Pa gen modèl similasyon</span>
               )
             }
           />
@@ -375,7 +375,7 @@ export function PaperActionPanel({
           disabled={busy || !sizeUsable || overSize}
           className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-[7px] border border-accent/35 bg-accent-dim px-5 text-[12px] font-medium tracking-[0.06em] text-accent uppercase transition-colors hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Take paper action
+          Pran aksyon papye
         </button>
       </div>
 
@@ -406,7 +406,7 @@ export function PaperActionPanel({
               // position they did not intend.
               'Existing paper position returned. The action had already been recorded.'
             : 'Paper position opened.'}{' '}
-          <span className="text-text-2">Simulated. No order was placed.</span>
+          <span className="text-text-2">Similye. Okenn lòd pa te pase.</span>
         </p>
       ) : null}
 

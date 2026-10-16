@@ -36,6 +36,7 @@ interface RunRow extends Row {
   dataset_label: string;
   dataset_source: string;
   asset_symbol: string;
+  instrument_identity: string | null;
   timeframe: string;
   candle_count: number | string;
   started_at: Date;
@@ -57,13 +58,13 @@ export function createBacktestRepository(
     const run = await tx.query<{ id: string }>(
       `INSERT INTO backtest_runs (
          user_id, strategy_id, strategy_key, strategy_version, result_type,
-         run_key, dataset_label, dataset_source, asset_symbol, timeframe,
+         run_key, dataset_label, dataset_source, asset_symbol, instrument_identity, timeframe,
          candle_count, range_from, range_to, config, warnings, started_at, finished_at
        ) VALUES (
          $1,
          (SELECT id FROM strategies WHERE strategy_key = $2 AND version = $3),
-         $2, $3, $4, $5, $6, $7::data_source, $8, $9, $10, $11, $12,
-         $13::jsonb, $14::jsonb, $15, $16
+         $2, $3, $4, $5, $6, $7::data_source, $8, $9, $10, $11, $12, $13,
+         $14::jsonb, $15::jsonb, $16, $17
        )
        ON CONFLICT (run_key) DO UPDATE SET finished_at = EXCLUDED.finished_at
        RETURNING id`,
@@ -76,6 +77,7 @@ export function createBacktestRepository(
         result.dataset.label,
         result.dataset.source,
         result.dataset.asset,
+        result.dataset.instrumentIdentity,
         result.dataset.timeframe,
         result.dataset.candleCount,
         result.dataset.from === null ? null : toTimestamp(result.dataset.from),
@@ -149,6 +151,7 @@ export function createBacktestRepository(
         dataset_label: string;
         dataset_source: string;
         asset_symbol: string;
+        instrument_identity: string | null;
         timeframe: string;
         candle_count: number | string;
         range_from: Date | null;
@@ -158,7 +161,8 @@ export function createBacktestRepository(
         strategy_name: string | null;
       }>(
         `SELECT r.config, r.warnings, r.run_key, r.strategy_key, r.strategy_version, r.result_type,
-                r.dataset_label, r.dataset_source, r.asset_symbol, r.timeframe, r.candle_count,
+                r.dataset_label, r.dataset_source, r.asset_symbol, r.instrument_identity,
+                r.timeframe, r.candle_count,
                 r.range_from, r.range_to, r.started_at, r.finished_at,
                 res.metrics, res.trades, s.name AS strategy_name
          FROM backtest_runs r
@@ -184,6 +188,11 @@ export function createBacktestRepository(
         config: fromJson(row.config, {}) as BacktestResult['config'],
         dataset: {
           asset: toText(row.asset_symbol, 'backtest.asset_symbol'),
+          // NULL means the run predates the column, so nothing about its
+          // instrument was established at the time. Reading it back as
+          // 'unresolved' records that gap instead of resolving the symbol now
+          // and claiming an identity the run never had.
+          instrumentIdentity: row.instrument_identity === 'catalogue' ? 'catalogue' : 'unresolved',
           timeframe: toTimeframe(row.timeframe),
           source: toDataSource(row.dataset_source),
           candleCount: toNumber(row.candle_count, 'backtest.candle_count'),
@@ -202,7 +211,8 @@ export function createBacktestRepository(
     async list(limit = 25): Promise<readonly BacktestRunSummary[]> {
       const result = await executor.query<RunRow>(
         `SELECT r.id, r.run_key, r.strategy_key, r.strategy_version, r.dataset_label,
-                r.dataset_source, r.asset_symbol, r.timeframe, r.candle_count, r.started_at,
+                r.dataset_source, r.asset_symbol, r.instrument_identity, r.timeframe,
+                r.candle_count, r.started_at,
                 r.result_type, res.trades_count, res.win_rate, res.net_pnl
          FROM backtest_runs r
          LEFT JOIN backtest_results res ON res.run_id = r.id
@@ -219,6 +229,8 @@ export function createBacktestRepository(
         datasetLabel: toText(row.dataset_label, 'backtest.dataset_label'),
         datasetSource: toDataSource(row.dataset_source),
         assetSymbol: toText(row.asset_symbol, 'backtest.asset_symbol'),
+        // See read(): NULL is 'not captured', never silently upgraded.
+        instrumentIdentity: row.instrument_identity === 'catalogue' ? 'catalogue' : 'unresolved',
         timeframe: toTimeframe(row.timeframe),
         candleCount: toNumber(row.candle_count, 'backtest.candle_count'),
         trades: toNumber(row.trades_count ?? 0, 'backtest.trades_count'),

@@ -1,4 +1,4 @@
-import { runHistoricalIngestion } from '@binaryai/market-data';
+import { assetFromInstrument, findInstrument, runHistoricalIngestion } from '@binaryai/market-data';
 import { TIMEFRAME_SECONDS, type Timeframe } from '@binaryai/types';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -112,12 +112,60 @@ export function registerMarketDataRoutes(app: FastifyInstance, context: AppConte
     }
 
     const { asset, timeframe, limit } = parsed.data;
-    const series = await context.persistence.repositories.candles.latest(asset, timeframe, limit);
+
+    /*
+     * Resolved through the CATALOGUE, like every other asset-scoped route.
+     *
+     * Without this, `?asset=BTC-USD` reported "no stored candles" while 593
+     * BTCUSD candles sat in the table — a legacy spelling produced an empty
+     * chart rather than the instrument's own data.
+     *
+     * An unknown symbol is refused rather than answered. It previously got a
+     * 200 saying "Run an ingestion first", which reads as "this instrument
+     * exists and simply has no data yet". For `EURUSD-OTC` that is exactly
+     * the claim BinaryAI must never make: OTC is unsupported, and an endpoint
+     * implying an OTC instrument is merely un-ingested is inventing one.
+     */
+    const instrument = findInstrument(asset);
+    if (!instrument) {
+      return reply
+        .code(404)
+        .send(
+          errorBody(
+            'unknown_instrument',
+            `No instrument named "${asset}" is in the catalogue.`,
+            undefined,
+            request.id,
+          ),
+        );
+    }
+
+    /*
+     * A timeframe the provider does not serve is a DIFFERENT fact from a
+     * timeframe that simply has not been ingested, and the remedy differs:
+     * one is "run an ingestion", the other is "this will never arrive".
+     * Telling an operator to run an ingestion that cannot succeed is advice
+     * that wastes their time and hides the real constraint.
+     */
+    if (!instrument.supportedTimeframes.includes(timeframe)) {
+      return {
+        series: null,
+        reason:
+          `${instrument.displaySymbol} is not served at ${timeframe} by ${instrument.providerId}. ` +
+          `Available: ${instrument.supportedTimeframes.join(', ')}.`,
+      };
+    }
+
+    const series = await context.persistence.repositories.candles.latest(
+      instrument.symbol,
+      timeframe,
+      limit,
+    );
 
     if (!series) {
       return {
         series: null,
-        reason: `No stored candles for ${asset} ${timeframe}. Run an ingestion first.`,
+        reason: `No stored candles for ${instrument.symbol} ${timeframe}. Run an ingestion first.`,
       };
     }
     return { series, count: series.candles.length };
@@ -130,29 +178,71 @@ export function registerMarketDataRoutes(app: FastifyInstance, context: AppConte
    * enabled, and it cannot be used to reach an arbitrary host.
    */
   app.post('/v1/market-data/ingest', async (request, reply) => {
-    const { provider, tracker } = context.marketData;
-    if (!provider) {
-      return reply
-        .code(503)
-        .send(errorBody('provider_not_configured', NO_PROVIDER, undefined, request.id));
-    }
+    const { tracker, router } = context.marketData;
 
     const parsed = parseBody(ingestSchema, request.body, reply);
     if (!parsed.ok) return parsed.sent;
 
     const body = parsed.data;
+
+    /*
+     * Resolve the instrument BEFORE anything else.
+     *
+     * This route used to take `body.asset` and pass it straight through to the
+     * provider and the repository, so whatever string the caller sent became a
+     * row in `market_assets`. That is how the same instrument came to be stored
+     * as both `BTC-USD` and `BTCUSD`, with its candle history split between
+     * them and every per-instrument query quietly wrong.
+     *
+     * The catalogue is now the gate: an unknown symbol is refused, and a known
+     * one is normalised to its canonical form regardless of which spelling the
+     * caller used. A caller can no longer name an instrument BinaryAI has not
+     * declared, which also removes the last path from a request body to an
+     * arbitrary provider symbol.
+     */
+    const instrument = findInstrument(body.asset);
+    if (!instrument) {
+      return reply
+        .code(404)
+        .send(
+          errorBody(
+            'unknown_instrument',
+            `${body.asset} is not in BinaryAI's instrument catalogue. GET /v1/instruments lists everything supported.`,
+            undefined,
+            request.id,
+          ),
+        );
+    }
+
+    // The provider for THIS instrument's asset class, not the primary one.
+    const provider = router.resolve(instrument);
+    if (!provider) {
+      return reply
+        .code(503)
+        .send(
+          errorBody(
+            'provider_not_configured',
+            `No market-data provider is configured for ${instrument.assetClass}. ${instrument.displaySymbol} cannot be ingested until one is.`,
+            undefined,
+            request.id,
+          ),
+        );
+    }
+
     if (body.to <= body.from) {
       return reply
         .code(400)
         .send(errorBody('invalid_range', '`to` must be after `from`.', undefined, request.id));
     }
-    if (!provider.capabilities.supportedTimeframes.includes(body.timeframe)) {
+    // Checked against the INSTRUMENT's timeframes, which are the provider's
+    // narrowed to what it serves for this symbol.
+    if (!instrument.supportedTimeframes.includes(body.timeframe)) {
       return reply
         .code(400)
         .send(
           errorBody(
             'unsupported_timeframe',
-            `${provider.capabilities.displayName} does not serve ${body.timeframe} candles. Supported: ${provider.capabilities.supportedTimeframes.join(', ')}.`,
+            `${provider.capabilities.displayName} does not serve ${body.timeframe} candles for ${instrument.displaySymbol}. Supported: ${instrument.supportedTimeframes.join(', ')}.`,
             undefined,
             request.id,
           ),
@@ -161,7 +251,8 @@ export function registerMarketDataRoutes(app: FastifyInstance, context: AppConte
 
     const result = await runHistoricalIngestion(
       {
-        symbol: body.asset,
+        // Canonical, never the caller's spelling.
+        symbol: instrument.symbol,
         timeframe: body.timeframe,
         from: body.from,
         to: body.to,
@@ -171,6 +262,12 @@ export function registerMarketDataRoutes(app: FastifyInstance, context: AppConte
         provider,
         repositories: context.persistence?.repositories ?? null,
         tracker,
+        asset: assetFromInstrument(instrument),
+        // Shared with the ingestion worker: a manual backfill and a background
+        // poll on the same provider queue through one allowance (R15).
+        ...(router.budgetFor(instrument.assetClass) === null
+          ? {}
+          : { budget: router.budgetFor(instrument.assetClass)! }),
       },
     );
 

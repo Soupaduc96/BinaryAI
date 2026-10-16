@@ -1,5 +1,6 @@
 import {
   TIMEFRAME_SECONDS,
+  type Candle,
   type CandleSeries,
   type IngestionIssue,
   type IngestionIssueCode,
@@ -51,6 +52,74 @@ function issue(
   return at === undefined ? { code, severity, message } : { code, severity, message, at };
 }
 
+/**
+ * The offsets this series' bars legitimately sit on, relative to the UTC grid.
+ *
+ * This exists because of a crypto assumption buried in the alignment check:
+ * `timestamp % stepMs === 0`, i.e. a daily candle must open at UTC midnight.
+ * That is true of a 24/7 venue and FALSE of every session-based one. Measured
+ * against the live providers:
+ *
+ *   BTC/USD  1d   00:00 UTC   offset 0          (continuous)
+ *   AAPL     1d   13:30 UTC   offset 48600s     (09:30 New York, EDT)
+ *   ^GSPC    1d   13:30 UTC   offset 48600s     (09:30 New York, EDT)
+ *   GC=F     1d   04:00 UTC   offset 14400s     (00:00 New York)
+ *   EUR/USD  1d   23:00 UTC   offset 82800s     (00:00 London)
+ *
+ * Requiring zero rejected 205 of 205 daily candles for stocks, indices and
+ * commodities — every one a real bar the venue genuinely published.
+ *
+ * WHY A SET RATHER THAN ONE ANCHOR. Daylight saving moves the session. A year
+ * of AAPL daily bars has exactly two offsets — 48600s for the 166 EDT sessions
+ * and 52200s for the 85 EST ones — and both are correct. A single anchor
+ * rejected whichever regime was in the minority, discarding 85 real bars.
+ *
+ * The property actually worth defending is UNIFORM SPACING: indicators break on
+ * a ragged grid, not on one that starts somewhere other than midnight. So the
+ * offsets are DERIVED from the data, and an offset counts as a real session
+ * convention only if a MEANINGFUL SHARE of bars sit on it. A corrupt timestamp
+ * is unique or near-unique and still fails; a DST regime is dozens of bars and
+ * passes. The cap keeps this from degenerating into "accept anything": a series
+ * genuinely scattered across many offsets has no convention, and the extras are
+ * rejected as they should be.
+ *
+ * Derived rather than configured per instrument on purpose. Encoding an anchor
+ * per venue would mean carrying an exchange calendar, and it would be wrong
+ * twice a year at every transition — which is precisely the case this handles.
+ */
+/** At most this many session regimes. DST gives two; four is generous. */
+const MAX_SESSION_OFFSETS = 4;
+/** A convention has to be observed repeatedly, not once. */
+const MIN_OFFSET_VOTES = 3;
+const MIN_OFFSET_SHARE = 0.05;
+
+function sessionAnchors(candles: readonly Candle[], stepMs: number): ReadonlySet<number> {
+  // Only settled bars vote. The newest bar is often still forming and is
+  // stamped "now" by some providers — exactly the noise that must not be
+  // allowed to define the grid.
+  const settled = candles.filter((candle) => candle.complete);
+  const voting = settled.length > 0 ? settled : candles;
+
+  // UTC alignment is always legitimate, and is the ONLY thing accepted without
+  // evidence. A lone bar at 00:00:37 has no neighbours to establish a
+  // convention with, so it stays rejected — which is the honest reading of "no
+  // evidence" and keeps a one-candle batch from defining its own grid.
+  const tally = new Map<number, number>([[0, 0]]);
+  for (const candle of voting) {
+    const offset = ((candle.timestamp % stepMs) + stepMs) % stepMs;
+    tally.set(offset, (tally.get(offset) ?? 0) + 1);
+  }
+
+  const threshold = Math.max(MIN_OFFSET_VOTES, Math.ceil(voting.length * MIN_OFFSET_SHARE));
+  const established = [...tally.entries()]
+    .filter(([offset, count]) => offset !== 0 && count >= threshold)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_SESSION_OFFSETS)
+    .map(([offset]) => offset);
+
+  return new Set([0, ...established]);
+}
+
 export function validateIngestedBatch(
   series: CandleSeries,
   options: QualityOptions = {},
@@ -65,6 +134,7 @@ export function validateIngestedBatch(
   const issues: IngestionIssue[] = [];
   const stepMs = TIMEFRAME_SECONDS[series.timeframe] * 1000;
   const candles = series.candles;
+  const anchors = sessionAnchors(candles, stepMs);
 
   if (candles.length === 0) {
     return {
@@ -150,14 +220,26 @@ export function validateIngestedBatch(
       candleRejected = true;
     }
 
-    if (candle.timestamp % stepMs !== 0) {
-      // A bar that does not sit on a timeframe boundary is not the bar it
-      // claims to be, and would misalign every indicator computed from it.
+    const offsetMs = ((candle.timestamp % stepMs) + stepMs) % stepMs;
+    if (!anchors.has(offsetMs)) {
+      // A bar off the series' own grid is not the bar it claims to be, and
+      // would misalign every indicator computed from it.
+      //
+      // Measured against `anchorMs` rather than against zero. See the comment
+      // on `sessionAnchors` — a daily equity bar opens at the exchange session,
+      // not at UTC midnight, and requiring zero here rejected every daily
+      // candle for stocks, indices and commodities.
+      const grid = [...anchors]
+        .sort((a, b) => a - b)
+        .map((value) => `${value / 1000}s`)
+        .join(', ');
       issues.push(
         issue(
           'unaligned_candle_boundary',
           'error',
-          `Timestamp is not aligned to a ${series.timeframe} boundary.`,
+          anchors.size === 1 && anchors.has(0)
+            ? `Timestamp is not aligned to a ${series.timeframe} boundary.`
+            : `Timestamp is ${offsetMs / 1000}s past the ${series.timeframe} boundary; this series' bars open at ${grid}.`,
           candle.timestamp,
         ),
       );

@@ -53,7 +53,7 @@ function Lifecycle({ position }: { position: PaperPositionView }) {
   ];
 
   return (
-    <ol className="flex items-center gap-1.5" aria-label="Position lifecycle">
+    <ol className="flex items-center gap-1.5" aria-label="Sik lavi pozisyon">
       {stages.map((stage, index) => (
         <li key={stage.label} className="flex min-w-0 items-center gap-1.5">
           <span className="flex items-center gap-1.5">
@@ -107,20 +107,20 @@ export function PositionState({ position }: { position: PaperPositionView }) {
       </div>
 
       <dl className="flex flex-col divide-y divide-edge/70 rounded-[6px] border border-edge bg-surface-2">
-        <Line label="Position" value={<span className="tnum">{position.id.slice(0, 8)}</span>} />
+        <Line label="Pozisyon" value={<span className="tnum">{position.id.slice(0, 8)}</span>} />
         <Line
-          label="Direction"
+          label="Direksyon"
           value={
             <span className={position.direction === 'call' ? 'text-bull' : 'text-bear'}>
               PAPER {position.direction.toUpperCase()}
             </span>
           }
         />
-        <Line label="Exposure" value={`${units(position.size)} units`} />
-        <Line label="Opened" value={<span className="tnum">{clock(position.openedAt)}</span>} />
-        <Line label="Expires" value={<span className="tnum">{clock(position.expiresAt)}</span>} />
+        <Line label="Ekspozisyon" value={`${units(position.size)} units`} />
+        <Line label="Ouvri" value={<span className="tnum">{clock(position.openedAt)}</span>} />
+        <Line label="Ekspire" value={<span className="tnum">{clock(position.expiresAt)}</span>} />
         <Line
-          label="Status"
+          label="Estati"
           value={
             settled ? (
               'SETTLED'
@@ -134,7 +134,7 @@ export function PositionState({ position }: { position: PaperPositionView }) {
         {settled ? (
           <>
             <Line
-              label="Outcome"
+              label="Rezilta"
               value={
                 position.result ? (
                   <span
@@ -154,7 +154,7 @@ export function PositionState({ position }: { position: PaperPositionView }) {
               }
             />
             <Line
-              label="Settled"
+              label="Regle"
               value={
                 position.settledAt === null ? (
                   <span className="text-text-3">—</span>
@@ -164,7 +164,7 @@ export function PositionState({ position }: { position: PaperPositionView }) {
               }
             />
             <Line
-              label="Settling bar"
+              label="Bouji règleman"
               value={
                 position.settlementCandleAt === null ? (
                   <span className="text-text-3">—</span>
@@ -174,7 +174,7 @@ export function PositionState({ position }: { position: PaperPositionView }) {
               }
             />
             <Line
-              label="Reference price"
+              label="Pri referans"
               value={
                 position.settlementPrice === null ? (
                   // Genuinely absent, not zero.

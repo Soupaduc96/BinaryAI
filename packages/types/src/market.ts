@@ -49,6 +49,34 @@ export interface MarketAsset {
   readonly pricePrecision: number;
   /** OTC instruments are broker-synthesised and must be labelled as such in the UI. */
   readonly isOtc: boolean;
+
+  /*
+   * Catalogue metadata.
+   *
+   * Optional because rows predate the catalogue: an asset stored before
+   * Phase 10 has a symbol and little else, and inventing a base currency for it
+   * would be a guess written to the database. Undefined here means "not known",
+   * which is a different and more useful claim than a plausible default.
+   *
+   * `Instrument` in `instrument.ts` is the complete, non-optional model. This is
+   * the persisted projection of it.
+   */
+
+  /** Presentation form, e.g. "BTC/USD". Derived, never parsed. */
+  readonly displaySymbol?: string;
+  /** Null for instruments that are not pairs — a share, an index level. */
+  readonly baseCurrency?: string | null;
+  readonly quoteCurrency?: string;
+  /** Registry id of the adapter that serves it. */
+  readonly providerId?: string;
+  /** That adapter's own identifier. Stored for support, never for routing. */
+  readonly providerSymbol?: string;
+  readonly quantityPrecision?: number;
+  readonly minimumSize?: number | null;
+  readonly tradingSchedule?: '24x7' | '24x5' | 'exchange_session' | 'unknown';
+  readonly supportedTimeframes?: readonly Timeframe[];
+  /** True when this row corresponds to a server-defined catalogue entry. */
+  readonly inCatalogue?: boolean;
 }
 
 /**

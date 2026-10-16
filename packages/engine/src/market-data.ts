@@ -104,10 +104,17 @@ export function sliceSeries(series: CandleSeries, endIndexInclusive: number): Ca
   return { ...series, candles: series.candles.slice(0, endIndexInclusive + 1) };
 }
 
+/**
+ * How much ONE affected bar costs, by severity.
+ *
+ * These are per-bar weights, not per-series penalties: the score below divides
+ * by the number of bars. An error bar is treated as wholly unusable, a warning
+ * bar as half-compromised, an info bar as barely touched.
+ */
 const SEVERITY_PENALTY: Readonly<Record<DataQualityIssue['severity'], number>> = {
-  error: 0.4,
-  warning: 0.1,
-  info: 0.02,
+  error: 1,
+  warning: 0.5,
+  info: 0.1,
 };
 
 export interface DataQualityOptions {
@@ -235,8 +242,28 @@ export function assessDataQuality(
     );
   }
 
-  let score = 1;
-  for (const item of issues) score -= SEVERITY_PENALTY[item.severity];
+  /*
+   * The score is the PROPORTION of the series that is sound, not one minus a
+   * running tally of complaints.
+   *
+   * The tally version made the score depend on how LONG a series was rather
+   * than how healthy it was. Every market that closes leaves a gap at every
+   * closure, so a 205-bar daily series of AAPL carried 45 perfectly ordinary
+   * weekend gaps, each costing a flat 0.1, and saturated the score to 0 —
+   * indistinguishable from a 30-bar series that was genuinely broken. Every
+   * daily instrument was therefore blocked by the data-quality risk check no
+   * matter how good its data was, which is this measure's purpose inverted.
+   *
+   * Dividing by the bar count fixes the dimension: 45 gaps in 205 bars is a
+   * 22%-irregular series; 45 gaps in 50 bars is a broken one. Nothing here
+   * knows what a weekend is, and nothing should — the gaps are still detected,
+   * still counted, and still reported issue by issue. All that changed is that
+   * their WEIGHT is relative to the series they were found in.
+   */
+  const bars = Math.max(candles.length, 1);
+  let penalty = 0;
+  for (const item of issues) penalty += SEVERITY_PENALTY[item.severity] / bars;
+  const score = 1 - penalty;
 
   return {
     usable: !issues.some((item) => item.severity === 'error'),

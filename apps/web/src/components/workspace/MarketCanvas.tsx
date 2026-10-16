@@ -73,10 +73,12 @@ export function MarketCanvas({
       // bg on the section itself, not only the page: in fullscreen this element
       // is the entire viewport and would otherwise sit on the browser's default
       // black with no surface treatment.
-      className="flex flex-1 flex-col overflow-hidden rounded-[10px] border border-edge bg-surface-1 fullscreen:rounded-none"
+      // The chart leads the workspace, so it carries the primary surface
+      // treatment: a stronger edge and a hairline of light along the top.
+      className="panel panel-primary panel-lit flex flex-1 flex-col overflow-hidden fullscreen:rounded-none"
     >
       {/* Chart toolbar */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-3 border-b border-edge bg-surface-2/40 px-4 py-2.5">
         <h2 id="market-canvas-heading" className="eyebrow">
           {instrument ?? 'Market'}
         </h2>
@@ -88,7 +90,7 @@ export function MarketCanvas({
         </div>
       </div>
 
-      <div className="flex min-h-[360px] flex-1 lg:min-h-[440px]">
+      <div className="chart-well flex min-h-[360px] flex-1 lg:min-h-[440px]">
         <div className="relative flex min-w-0 flex-1 flex-col">
           {hasData ? (
             <CandleChart

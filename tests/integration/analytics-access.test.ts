@@ -388,9 +388,20 @@ describe('input validation', () => {
       url: `/v1/analytics/overview?asset=${hostile}`,
     });
 
-    // Matches no asset, so zero counts -- and the table is still there.
-    expect(response.statusCode).toBe(200);
-    expect(response.json().overview.counts.total).toBe(0);
+    /*
+     * Refused BEFORE it reaches a query at all.
+     *
+     * This used to assert 200 with zero counts: the string was parameterised,
+     * matched no asset, and returned an empty report. Safe, but it meant a
+     * hostile symbol still travelled all the way to the database as a bind
+     * parameter. Since the S7-3 fix an unknown symbol is rejected at the edge,
+     * so the string never becomes a query parameter in the first place.
+     *
+     * The assertion that matters is unchanged and still below: the table is
+     * still there, with every row intact.
+     */
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe('unknown_instrument');
 
     const survived = await context.database.query<{ count: string }>(
       'SELECT COUNT(*) AS count FROM signals',

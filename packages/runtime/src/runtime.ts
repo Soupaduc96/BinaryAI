@@ -1,4 +1,4 @@
-import type { IngestionTracker } from '@binaryai/market-data';
+import type { IngestionTracker, RateBudget } from '@binaryai/market-data';
 import type {
   AnalysisRuntimeStatus,
   MarketAsset,
@@ -10,7 +10,11 @@ import type {
   Timeframe,
   WorkerStatus,
 } from '@binaryai/types';
-import { runAnalysisCycle, type AnalysisSkipReason } from './analysis-loop.js';
+import {
+  runAnalysisCycle,
+  type AnalysisSkipReason,
+  type ResolvedAnalysisInstrument,
+} from './analysis-loop.js';
 import { runIngestionCycle } from './ingestion-loop.js';
 import { createScheduler, type Scheduler, type SchedulerStats } from './scheduler.js';
 import { runMaintenanceCycle } from './maintenance-worker.js';
@@ -45,7 +49,53 @@ export interface RuntimeDeps {
   readonly provider: MarketDataProvider | null;
   readonly repositories: Repositories | null;
   readonly strategy: Strategy;
+  /**
+   * Catalogue metadata for the analysis worker's first instrument.
+   *
+   * Retained for callers that still hand the runtime a single descriptor.
+   * Neither worker reads it any more — each cycle carries its own resolved
+   * instrument, which is what stops one from writing another's asset row.
+   */
   readonly asset: MarketAsset;
+  /**
+   * The instruments the ANALYSIS worker runs, each already resolved from the
+   * catalogue. One entry preserves the previous behaviour exactly.
+   */
+  readonly analysisInstruments: readonly ResolvedAnalysisInstrument[];
+  /**
+   * The instruments the INGESTION worker keeps fresh, each with its own
+   * timeframe.
+   *
+   * R1. Separate from the analysis plan on purpose: an instrument may have
+   * market data without being analysed. Before this existed the worker polled
+   * one symbol, so every hand-added instrument received a single backfill and
+   * then aged — BTC/USD 49 seconds old beside gold at eleven hours.
+   */
+  readonly ingestionInstruments: readonly ResolvedAnalysisInstrument[];
+  /**
+   * Resolves the shared request budget for an asset class.
+   *
+   * Supplied by the router, which owns one budget per provider instance.
+   * Optional so a caller without a router keeps the per-run fallback.
+   */
+  readonly budgetFor?: (assetClass: MarketAsset['assetClass']) => RateBudget | null;
+  /**
+   * The provider that serves an asset class.
+   *
+   * Ingestion used to poll EVERY configured instrument through the single
+   * `provider` above, which is resolved for the ANALYSED instrument. With
+   * BTCUSD analysed that provider is Coinbase, so an ingestion plan of
+   * `BTCUSD@1m,ETHUSD@1m,EURUSD@1h,AAPL@1d` asked a crypto exchange for a
+   * currency pair and a US equity. Observed live: BTC and ETH advanced every
+   * cycle while EUR/USD sat four hours stale and AAPL five, with the worker
+   * reporting `failures: 0` throughout — the wrong provider simply returns
+   * nothing, and nothing is not an error.
+   *
+   * Class-aware like `budgetFor`, and optional for the same reason: a
+   * single-provider deployment or a test that injects one provider keeps
+   * working through the `provider` fallback.
+   */
+  readonly providerFor?: (assetClass: MarketAsset['assetClass']) => MarketDataProvider | null;
   readonly tracker?: IngestionTracker;
   readonly now?: () => number;
   readonly onEvent?: (event: RuntimeEvent) => void;
@@ -83,7 +133,18 @@ function toWorkerStatus(stats: SchedulerStats, enabled: boolean): WorkerStatus {
 }
 
 export function createRuntime(config: RuntimeConfig, deps: RuntimeDeps): Runtime {
-  const { provider, repositories, strategy, asset, tracker, now = Date.now, onEvent } = deps;
+  const {
+    provider,
+    repositories,
+    strategy,
+    analysisInstruments,
+    ingestionInstruments,
+    budgetFor,
+    providerFor,
+    tracker,
+    now = Date.now,
+    onEvent,
+  } = deps;
 
   let startedAt: number | null = null;
 
@@ -108,13 +169,77 @@ export function createRuntime(config: RuntimeConfig, deps: RuntimeDeps): Runtime
 
   const emit = (event: RuntimeEvent): void => onEvent?.(event);
 
+  /**
+   * Instruments that have already had their one deep-history attempt.
+   *
+   * Per process, per instrument: enough to repair a truncated first ingest on
+   * the next start, bounded so a provider with genuinely no deeper history is
+   * asked once rather than every cycle.
+   */
+  const deepStarted = new Set<string>();
+
   const ingestionScheduler = createScheduler(
     async () => {
       if (!provider) return;
-      const cycle = await runIngestionCycle(
-        { provider, repositories, ...(tracker === undefined ? {} : { tracker }), now },
-        { symbol: config.symbol, timeframe: config.timeframe },
-      );
+      /*
+       * One poll per configured instrument, in sequence.
+       *
+       * Sequential, like analysis: each cycle writes candles, and the provider
+       * budget is shared (see `createProviderRouter`), so racing them would
+       * only queue inside the throttle while making the counters below
+       * describe an interleaving nobody can reconstruct.
+       */
+      let cycle: Awaited<ReturnType<typeof runIngestionCycle>> | null = null;
+      for (const instrument of ingestionInstruments) {
+        // The provider for THIS instrument's class, not the analysed one's.
+        const instrumentProvider =
+          providerFor === undefined ? provider : (providerFor(instrument.asset.assetClass) ?? null);
+
+        /*
+         * A class with no configured provider is REPORTED, not skipped in
+         * silence. Saying nothing is what let four stale instruments look
+         * healthy: the operator configured them, the worker claimed success,
+         * and no candle ever arrived.
+         */
+        if (!instrumentProvider) {
+          emit({
+            worker: 'ingestion',
+            code: 'ingestion_no_provider',
+            level: 'warning',
+            message:
+              `No market-data provider is configured for ${instrument.asset.assetClass}, ` +
+              `so ${instrument.symbol} cannot be ingested.`,
+          });
+          continue;
+        }
+
+        const outcome = await runIngestionCycle(
+          {
+            provider: instrumentProvider,
+            repositories,
+            // Catalogue metadata for THIS instrument, so the asset row is
+            // never written with another instrument's class.
+            asset: instrument.asset,
+            // The budget belongs to the PROVIDER, so every instrument routed
+            // there queues through one allowance (R15).
+            ...(budgetFor === undefined
+              ? {}
+              : { budget: budgetFor(instrument.asset.assetClass) ?? undefined }),
+            ...(tracker === undefined ? {} : { tracker }),
+            now,
+          },
+          {
+            symbol: instrument.symbol,
+            timeframe: instrument.timeframe,
+            // One deep window per instrument per process, to repair a history
+            // that a truncated first ingest left short.
+            deepStart: !deepStarted.has(instrument.symbol),
+          },
+        );
+        deepStarted.add(instrument.symbol);
+        if (cycle === null || (!cycle.ran && outcome.ran)) cycle = outcome;
+      }
+      if (cycle === null) return;
 
       if (!cycle.ran) {
         emit({
@@ -155,10 +280,25 @@ export function createRuntime(config: RuntimeConfig, deps: RuntimeDeps): Runtime
 
   const analysisScheduler = createScheduler(
     async () => {
-      const cycle = await runAnalysisCycle(
-        { repositories, strategy, asset, now },
-        { symbol: config.symbol, timeframe: config.timeframe },
-      );
+      /*
+       * One cycle per configured instrument, run in sequence.
+       *
+       * Sequential rather than concurrent on purpose: each cycle writes a
+       * signal and upserts an asset row, and the scheduler's whole contract is
+       * that one tick is one unit of work. Racing them would also make the
+       * status counters below describe an interleaving nobody can reconstruct.
+       *
+       * Each carries its OWN resolved instrument, which is the D3 fix: there is
+       * no shared symbol for one iteration to leak into the next.
+       */
+      let cycle: Awaited<ReturnType<typeof runAnalysisCycle>> | null = null;
+      for (const instrument of analysisInstruments) {
+        const outcome = await runAnalysisCycle({ repositories, strategy, instrument, now });
+        // The reported cycle is the first that actually analysed something;
+        // otherwise the last, so a skip reason is still surfaced.
+        if (cycle === null || (!cycle.analyzed && outcome.analyzed)) cycle = outcome;
+      }
+      if (cycle === null) return;
 
       if (!cycle.analyzed) {
         lastSkipReason = cycle.skipped ?? null;
@@ -345,8 +485,20 @@ export function createRuntime(config: RuntimeConfig, deps: RuntimeDeps): Runtime
 
       const analysis: AnalysisRuntimeStatus = {
         ...toWorkerStatus(analysisScheduler.stats(), enabled.analysis),
-        symbol: enabled.analysis ? config.symbol : null,
-        timeframe: enabled.analysis ? config.timeframe : null,
+        symbol: enabled.analysis ? (analysisInstruments[0]?.symbol ?? null) : null,
+        symbols: enabled.analysis ? analysisInstruments.map((entry) => entry.symbol) : [],
+        // The full plan: each instrument WITH the timeframe it is analysed at.
+        // R2 — a single `timeframe` here could only describe one entry, and
+        // named the wrong one for every other instrument in the plan.
+        plan: enabled.analysis
+          ? analysisInstruments.map((entry) => ({
+              symbol: entry.symbol,
+              timeframe: entry.timeframe,
+              assetClass: entry.asset.assetClass,
+            }))
+          : [],
+        // First entry's timeframe, kept for single-instrument readers.
+        timeframe: enabled.analysis ? (analysisInstruments[0]?.timeframe ?? null) : null,
         lastAnalyzedCandleAt,
         lastSignalKey,
         lastSignalAt,

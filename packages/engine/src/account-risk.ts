@@ -67,6 +67,24 @@ export interface AccountRiskContext {
   /** Epoch ms of the most recent settled loss, or null. */
   readonly lastLossAt: number | null;
   readonly availableUnits: number;
+  /**
+   * Open positions on THIS instrument. R4.
+   *
+   * Defaults to the account total when a caller does not supply it, which is
+   * conservative: an instrument limit then behaves like the account limit
+   * rather than being silently unenforced.
+   */
+  readonly instrumentOpenPositions: number;
+  /** Units committed to THIS instrument inside the exposure window. */
+  readonly instrumentExposureInWindow: number;
+  /**
+   * Epoch ms of the most recent settled loss ON THIS INSTRUMENT, or null.
+   *
+   * Read only when the policy sets `isolateCooldown` for it. Defaults to the
+   * account-wide value, so a context that does not distinguish them behaves
+   * exactly as before.
+   */
+  readonly instrumentLastLossAt: number | null;
 }
 
 export interface AccountActionInput {
@@ -331,6 +349,62 @@ export function evaluateAccountAction(input: AccountActionInput): AccountRiskDec
     ),
   );
 
+  /*
+   * 7b. PER-INSTRUMENT limits (R4).
+   *
+   * Evaluated only when the policy names limits for THIS instrument, so an
+   * account with none behaves exactly as it did before this existed.
+   *
+   * These SUBDIVIDE the account ceiling; they never raise it. Both checks above
+   * have already run against the account totals, and a per-instrument
+   * allowance larger than the account's cannot help — the account check would
+   * still refuse. That ordering is the guarantee: account first, instrument
+   * second, and a failure at either level blocks.
+   *
+   * What this fixes: one account-wide `maxOpenPositions: 1` across several
+   * analysed instruments means the first to signal takes the only slot and
+   * every other instrument is starved until it closes.
+   */
+  const instrumentLimits = policy.perInstrument?.[signal.assetSymbol];
+  if (instrumentLimits?.maxOpenPositions !== undefined) {
+    const withinInstrumentOpen =
+      context.instrumentOpenPositions < instrumentLimits.maxOpenPositions;
+    evaluations.push(
+      evaluation(
+        'instrument_max_open_positions',
+        `Open positions on ${signal.assetSymbol}`,
+        withinInstrumentOpen,
+        withinInstrumentOpen
+          ? `${context.instrumentOpenPositions} of ${instrumentLimits.maxOpenPositions} ${signal.assetSymbol} slots in use.`
+          : `${context.instrumentOpenPositions} position(s) already open on ${signal.assetSymbol}; its limit is ${instrumentLimits.maxOpenPositions}.`,
+        context.instrumentOpenPositions,
+        instrumentLimits.maxOpenPositions,
+      ),
+    );
+  }
+
+  if (instrumentLimits?.maxExposureFraction !== undefined) {
+    // A FRACTION of the account's own window allowance, so tightening the
+    // account limit tightens every instrument with it and no instrument
+    // budget can outlive the ceiling it was carved from.
+    const instrumentCap = policy.maxDailyExposure * instrumentLimits.maxExposureFraction;
+    const instrumentProjected = context.instrumentExposureInWindow + (sizeValid ? size : 0);
+    const withinInstrumentExposure = instrumentProjected <= instrumentCap;
+    evaluations.push(
+      evaluation(
+        'instrument_exposure_limit',
+        `Exposure on ${signal.assetSymbol}`,
+        withinInstrumentExposure,
+        withinInstrumentExposure
+          ? `${instrumentProjected} of ${instrumentCap} ${signal.assetSymbol} units committed in the last ${EXPOSURE_WINDOW_HOURS}h.`
+          : `This action would bring ${signal.assetSymbol} exposure to ${instrumentProjected}, over its ${instrumentCap} share of the account limit.`,
+        instrumentProjected,
+        instrumentCap,
+        window,
+      ),
+    );
+  }
+
   // 8. Allocation. Exposure cannot be committed that the account was never
   //    allocated -- otherwise the derived ledger balance would go negative and
   //    "available units" would stop meaning anything.
@@ -363,9 +437,22 @@ export function evaluateAccountAction(input: AccountActionInput): AccountRiskDec
     ),
   );
 
-  // 10. Cooldown.
+  /*
+   * 10. Cooldown.
+   *
+   * ACCOUNT-WIDE by default, and deliberately so (R4). A cooldown describes the
+   * ACCOUNT's condition after a loss, not a market's. Making it per-instrument
+   * by default would let an account trade straight through a losing streak by
+   * rotating instruments — the opposite of what a cooldown is for.
+   *
+   * `isolateCooldown` confines it to one instrument. That is a defensible
+   * position — a loss on gold may say nothing about Bitcoin — but the operator
+   * has to take it deliberately rather than inherit it.
+   */
+  const isolateCooldown = policy.perInstrument?.[signal.assetSymbol]?.isolateCooldown === true;
+  const lastLossForScope = isolateCooldown ? context.instrumentLastLossAt : context.lastLossAt;
   const cooldownMs = policy.limits.cooldownSecondsAfterLoss * 1000;
-  const cooldownEndsAt = context.lastLossAt === null ? null : context.lastLossAt + cooldownMs;
+  const cooldownEndsAt = lastLossForScope === null ? null : lastLossForScope + cooldownMs;
   const inCooldown = cooldownEndsAt !== null && now < cooldownEndsAt;
   evaluations.push(
     evaluation(
@@ -373,13 +460,13 @@ export function evaluateAccountAction(input: AccountActionInput): AccountRiskDec
       'Cooldown',
       !inCooldown,
       inCooldown
-        ? `Cooldown active for another ${Math.ceil((cooldownEndsAt - now) / 1000)}s after the last loss.`
-        : 'No cooldown in force.',
-      context.lastLossAt,
+        ? `Cooldown active for another ${Math.ceil((cooldownEndsAt - now) / 1000)}s after the last ${isolateCooldown ? `${signal.assetSymbol} ` : ''}loss.`
+        : isolateCooldown
+          ? `No ${signal.assetSymbol} cooldown in force.`
+          : 'No cooldown in force.',
+      lastLossForScope,
       cooldownEndsAt,
-      cooldownEndsAt === null
-        ? null
-        : { fromMs: context.lastLossAt as number, toMs: cooldownEndsAt },
+      cooldownEndsAt === null ? null : { fromMs: lastLossForScope as number, toMs: cooldownEndsAt },
     ),
   );
 
@@ -444,6 +531,9 @@ export function defaultAccountPolicy(accountId: string, at: number): AccountRisk
     allowedStrategies: null,
     allowedTimeframes: null,
     allowedAssets: null,
+    // No instrument-specific limits by default: the account limits alone are
+    // exactly the behaviour that existed before per-instrument limits.
+    perInstrument: null,
   };
 }
 
@@ -463,6 +553,7 @@ export function applyPolicyUpdate(
     allowedStrategies?: readonly string[] | null;
     allowedTimeframes?: readonly Timeframe[] | null;
     allowedAssets?: readonly string[] | null;
+    perInstrument?: AccountRiskPolicy['perInstrument'];
   },
   at: number,
 ): AccountRiskPolicy {
@@ -481,6 +572,10 @@ export function applyPolicyUpdate(
       update.allowedTimeframes === undefined ? current.allowedTimeframes : update.allowedTimeframes,
     allowedAssets:
       update.allowedAssets === undefined ? current.allowedAssets : update.allowedAssets,
+    // Replaced wholesale, like the allowlists: a partial merge would make it
+    // impossible to REMOVE one instrument's limits without clearing them all.
+    perInstrument:
+      update.perInstrument === undefined ? current.perInstrument : update.perInstrument,
   };
 }
 

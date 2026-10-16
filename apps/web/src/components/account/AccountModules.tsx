@@ -1,3 +1,4 @@
+import { ScopeNote } from '@/components/account/ScopeNote';
 import type {
   ApiResult,
   PaperAccountFeed,
@@ -105,7 +106,7 @@ export function RecentPositionsModule({
       <Surface className="flex flex-col">
         <ModuleHead title="Recent positions" />
         {feed.unauthorized ? (
-          <Locked what="Positions are private to an account." />
+          <Locked what="Pozisyon yo prive pou yon kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -138,11 +139,22 @@ export function RecentPositionsModule({
         badgeTone="warn"
       />
       <div className="flex flex-1 flex-col px-5 py-4">
+        <div className="mb-3">
+          <ScopeNote feed={feed.data} noun="positions" />
+        </div>
         {positions.length === 0 ? (
-          <Dormant
-            headline="No paper positions"
-            detail="Act on an accepted signal to open one. Positions appear here once your account risk policy permits the action."
-          />
+          <>
+            <Dormant
+              headline="Pa gen pozisyon papye"
+              detail="Aji sou yon siyal ki aksepte pou ouvri youn. Pozisyon yo parèt isit la yon fwa règleman risk kont ou an pèmèt aksyon an."
+            />
+            {/* R10 — "none" and "none on this instrument" are different
+                claims, and the empty state is where they are most easily
+                confused. */}
+            <div className="mt-3">
+              <ScopeNote feed={feed.data} noun="positions" />
+            </div>
+          </>
         ) : (
           <div className="-mx-1 overflow-x-auto">
             <table
@@ -313,7 +325,7 @@ export function LedgerSummaryModule({ account }: { account: ApiResult<PaperAccou
       <Surface className="flex flex-col">
         <ModuleHead title="Ledger summary" />
         {account.unauthorized ? (
-          <Locked what="The ledger is per account." />
+          <Locked what="Rejis la se pa kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(account)} detail={account.error} />
@@ -332,7 +344,7 @@ export function LedgerSummaryModule({ account }: { account: ApiResult<PaperAccou
       <div className="flex flex-1 flex-col gap-4 px-5 py-4">
         {!configured ? (
           <Dormant
-            headline="Accounting model not configured"
+            headline="Modèl kontablite pa konfigire"
             detail="This account has no unit allocation, so there is no capacity to report."
           />
         ) : (

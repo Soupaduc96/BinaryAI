@@ -77,7 +77,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <section
       aria-labelledby="decision-heading"
-      className="panel panel-elevated relative flex flex-col overflow-hidden"
+      className="panel panel-elevated panel-lit relative flex flex-col overflow-hidden"
     >
       {/* Accent-lit top edge: marks the intelligence layer without decoration. */}
       <span
@@ -168,9 +168,9 @@ export function DecisionPanel({
 
         <Divider />
         <div className="flex flex-col divide-y divide-edge">
-          <Stat label="Confidence" value={<Absent />} />
+          <Stat label="Konfyans" value={<Absent />} />
           <Stat label="Market regime" value={<Absent />} />
-          <Stat label="Signal quality" value={<Absent />} />
+          <Stat label="Kalite siyal" value={<Absent />} />
           <Stat label="Risk" value={<Absent />} />
         </div>
 
@@ -234,7 +234,7 @@ export function DecisionPanel({
       <div className="flex flex-col divide-y divide-edge">
         <Stat label="Market regime" value={REGIME_LABEL[signal.marketRegime] ?? 'UNCLASSIFIED'} />
         <Stat
-          label="Signal quality"
+          label="Kalite siyal"
           value={`${confirmations}/${confirmations + conflicts}`}
           meter={
             <SegmentMeter
@@ -250,7 +250,7 @@ export function DecisionPanel({
           value={signal.riskLevel.toUpperCase()}
           tone={RISK_TONE[signal.riskLevel] ?? 'neutral'}
         />
-        <Stat label="Expiration" value={`${signal.expiration.seconds}s`} />
+        <Stat label="Ekspirasyon" value={`${signal.expiration.seconds}s`} />
       </div>
 
       <Divider />
@@ -293,6 +293,8 @@ function ReasonGroup({
     bull: 'bg-bull',
     bear: 'bg-bear',
     warn: 'bg-warn',
+    iris: 'bg-iris',
+    cyan: 'bg-cyan',
   }[tone];
 
   return (

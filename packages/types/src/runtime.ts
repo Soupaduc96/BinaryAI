@@ -23,7 +23,28 @@ export interface WorkerStatus {
 }
 
 export interface AnalysisRuntimeStatus extends WorkerStatus {
+  /** The first configured instrument. Null when analysis is disabled. */
   readonly symbol: string | null;
+  /**
+   * EVERY configured analysis instrument.
+   *
+   * Empty when analysis is disabled. The list is what makes "which instruments
+   * does this deployment actually analyse" answerable from the status endpoint
+   * rather than inferred from a single symbol.
+   */
+  readonly symbols: readonly string[];
+  /**
+   * The resolved analysis plan: each instrument with the timeframe it is
+   * analysed at, and its asset class.
+   *
+   * R2. `timeframe` above can only describe one entry; with a mixed plan
+   * (BTCUSD@1m, AAPL@1d) it names the wrong one for every other instrument.
+   */
+  readonly plan: readonly {
+    readonly symbol: string;
+    readonly timeframe: Timeframe;
+    readonly assetClass: string;
+  }[];
   readonly timeframe: Timeframe | null;
   /** Decision bar of the most recent completed analysis. */
   readonly lastAnalyzedCandleAt: number | null;

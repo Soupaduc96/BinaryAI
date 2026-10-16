@@ -57,9 +57,9 @@ export function AccountMenu({
         type="button"
         onClick={signOut}
         disabled={busy}
-        className="h-8 rounded-md border border-edge px-2.5 text-[12px] text-text-2 transition-colors hover:border-edge-strong hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-8 rounded-lg border border-edge px-2.5 text-[12px] text-text-2 hover:border-accent/40 hover:text-text-1 disabled:cursor-not-allowed"
       >
-        {busy ? '…' : 'Sign out'}
+        {busy ? '…' : 'Dekonekte'}
       </button>
     </span>
   );

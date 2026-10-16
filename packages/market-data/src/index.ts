@@ -24,7 +24,40 @@ export {
   type CoinbaseProviderOptions,
 } from './providers/coinbase.js';
 
-export { createProvider, listAvailableProviders, type ProviderId } from './registry.js';
+export {
+  createYahooProvider,
+  YAHOO_CAPABILITIES,
+  parseChart,
+  type YahooProviderOptions,
+} from './providers/yahoo.js';
+
+export {
+  createFixedRouter,
+  createProvider,
+  createProviderRouter,
+  listAvailableProviders,
+  providerCapabilities,
+  type ProviderAssignment,
+  type ProviderId,
+  type ProviderRouter,
+} from './registry.js';
+
+export {
+  ASSET_CLASS_LABELS,
+  CATALOGUE_ASSET_CLASSES,
+  INSTRUMENT_CATALOGUE,
+  assetFromInstrument,
+  findInstrument,
+  instrumentsByClass,
+  listInstruments,
+  searchInstruments,
+} from './catalogue.js';
+
+export {
+  resolveAvailability,
+  resolveAssetClassState,
+  type AvailabilityInputs,
+} from './availability.js';
 
 export { normalizeProviderResult, type NormalizedBatch } from './normalize.js';
 
@@ -45,3 +78,7 @@ export {
   type IngestionTracker,
   type StatusInputs,
 } from './observability.js';
+
+export { createRateBudget, type RateBudget, type RateBudgetOptions } from './rate-budget.js';
+
+export { assessFreshness, type Freshness, type FreshnessState } from './freshness.js';

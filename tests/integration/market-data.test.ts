@@ -270,11 +270,51 @@ describe('request validation', () => {
   });
 
   it('says why there are no candles rather than returning an empty array', async () => {
+    // A REAL instrument with nothing ingested yet. The reason names the fix.
     const body = (
-      await app.inject({ method: 'GET', url: '/v1/market-data/candles?asset=NOPEUSD&timeframe=1m' })
+      await app.inject({ method: 'GET', url: '/v1/market-data/candles?asset=BTCUSD&timeframe=1m' })
     ).json();
     expect(body.series).toBeNull();
     expect(body.reason).toMatch(/No stored candles/);
+  });
+
+  it('refuses an instrument the catalogue does not know', async () => {
+    // This case used to return 200 with "Run an ingestion first", which reads
+    // as "this instrument exists and simply has no data yet". For a symbol
+    // like EURUSD-OTC that is a claim BinaryAI must never make: OTC is
+    // unsupported, and implying an OTC instrument is merely un-ingested
+    // invents one.
+    for (const asset of ['NOPEUSD', 'EURUSD-OTC']) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/v1/market-data/candles?asset=${encodeURIComponent(asset)}&timeframe=1m`,
+      });
+      expect(response.statusCode, asset).toBe(404);
+      expect(response.json().error.code).toBe('unknown_instrument');
+    }
+  });
+
+  it('distinguishes a timeframe the provider does not serve from one not yet ingested', async () => {
+    // Coinbase serves BTC/USD at 1m, 5m, 15m, 1h and 1d — never 3m. Telling an
+    // operator to "run an ingestion" for 3m is advice for an ingestion that
+    // can never succeed, so the two states must not share a message.
+    const body = (
+      await app.inject({ method: 'GET', url: '/v1/market-data/candles?asset=BTCUSD&timeframe=3m' })
+    ).json();
+    expect(body.series).toBeNull();
+    expect(body.reason).toMatch(/not served at 3m/);
+  });
+
+  it('resolves a legacy spelling to the canonical instrument', async () => {
+    // `?asset=BTC-USD` reported "no stored candles" while BTCUSD candles sat
+    // in the table, so a legacy spelling produced an empty chart.
+    const canonical = (
+      await app.inject({ method: 'GET', url: '/v1/market-data/candles?asset=BTCUSD&timeframe=1m' })
+    ).json();
+    const alias = (
+      await app.inject({ method: 'GET', url: '/v1/market-data/candles?asset=BTC-USD&timeframe=1m' })
+    ).json();
+    expect(alias).toEqual(canonical);
   });
 });
 

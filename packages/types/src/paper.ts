@@ -60,6 +60,49 @@ export interface AccountRiskPolicy {
   readonly allowedStrategies: readonly string[] | null;
   readonly allowedTimeframes: readonly Timeframe[] | null;
   readonly allowedAssets: readonly string[] | null;
+  /**
+   * OPTIONAL per-instrument limits, keyed by canonical catalogue symbol.
+   *
+   * R4. The account limits above are account-wide, and they remain the ABSOLUTE
+   * CEILING: nothing here can raise them. What this adds is the ability to
+   * subdivide that ceiling, because with several instruments analysed a single
+   * account-wide `maxOpenPositions: 1` means the first instrument to signal
+   * takes the only slot and every other instrument is blocked for as long as it
+   * is held — a starvation nobody configured.
+   *
+   * Absent (or an absent key) means NO instrument-specific restriction, which
+   * is exactly the behaviour that existed before this field. Backward
+   * compatibility is therefore the default, not a special case.
+   */
+  readonly perInstrument: Readonly<Record<string, InstrumentRiskLimits>> | null;
+}
+
+/**
+ * Limits that apply to ONE instrument.
+ *
+ * Deliberately a small set. Consecutive losses, daily loss and cooldown stay
+ * account-wide: they describe the ACCOUNT's condition, not a market's, and a
+ * per-instrument cooldown would let an account keep trading through a losing
+ * streak by rotating instruments — which is the opposite of what a cooldown is
+ * for. See `isolateCooldown` for the one deliberate exception.
+ */
+export interface InstrumentRiskLimits {
+  /** Open positions allowed on this instrument. Never raises the account cap. */
+  readonly maxOpenPositions?: number;
+  /**
+   * Fraction of the account's exposure allowance this instrument may hold,
+   * 0..1. Applied against the same window the account limit uses.
+   */
+  readonly maxExposureFraction?: number;
+  /**
+   * Confine the loss cooldown to this instrument.
+   *
+   * Defaults to FALSE, so a loss cools the whole account down exactly as it
+   * does today. Setting it true is an explicit statement that a loss on one
+   * market says nothing about another — a defensible position, but one the
+   * operator must take deliberately rather than inherit.
+   */
+  readonly isolateCooldown?: boolean;
 }
 
 /** The subset a user may change. `allowLiveExecution` is deliberately absent. */
@@ -70,6 +113,7 @@ export type AccountRiskPolicyUpdate = {
   readonly allowedStrategies?: readonly string[] | null;
   readonly allowedTimeframes?: readonly Timeframe[] | null;
   readonly allowedAssets?: readonly string[] | null;
+  readonly perInstrument?: Readonly<Record<string, InstrumentRiskLimits>> | null;
 };
 
 // ------------------------------------------------------------ decision --
@@ -96,6 +140,10 @@ export type AccountRuleCode =
   | 'position_size_valid'
   | 'max_position_size'
   | 'max_open_positions'
+  // Per-instrument, evaluated only when the policy names limits for the
+  // instrument being acted on. Never raises the account limits above.
+  | 'instrument_max_open_positions'
+  | 'instrument_exposure_limit'
   | 'daily_exposure_limit'
   | 'sufficient_units'
   | 'consecutive_loss_limit'

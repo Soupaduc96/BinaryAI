@@ -1,3 +1,4 @@
+import { ScopeNote } from '@/components/account/ScopeNote';
 import type { ApiResult, PaperPositionView, PositionsFeed } from '@/lib/api';
 import {
   Chip,
@@ -53,9 +54,9 @@ export function ActivePositionModule({
   if (!feed.ok) {
     return (
       <Surface aria-labelledby="active-position-heading" className="flex flex-col">
-        <ModuleHeader label="Active paper position" id="active-position-heading" />
+        <ModuleHeader label="Pozisyon papye aktif" id="active-position-heading" />
         {feed.unauthorized ? (
-          <Locked what="Positions are private to an account." />
+          <Locked what="Pozisyon yo prive pou yon kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -74,12 +75,19 @@ export function ActivePositionModule({
   if (!active) {
     return (
       <Surface aria-labelledby="active-position-heading" className="flex flex-col">
-        <ModuleHeader label="Active paper position" id="active-position-heading" />
+        <ModuleHeader label="Pozisyon papye aktif" id="active-position-heading" />
         <div className="px-5 py-5">
           <Dormant
-            headline="No active position"
-            detail="Taking a paper action on an accepted signal opens one. It appears here until it settles."
+            headline="Pa gen pozisyon aktif"
+            detail="Pran yon aksyon papye sou yon siyal ki aksepte ouvri youn. Li parèt isit la jiskaske li regle."
           />
+          {/* R10 — this module reads the account, not the instrument the
+              workspace is on. "No active position" therefore means nowhere,
+              not merely nowhere on this pair, and saying so prevents a user
+              believing they are flat while exposure sits elsewhere. */}
+          <div className="mt-3">
+            <ScopeNote feed={feed.data} noun="positions" />
+          </div>
         </div>
       </Surface>
     );
@@ -101,7 +109,7 @@ function ActivePositionCard({
   return (
     <Surface aria-labelledby="active-position-heading" className="flex flex-col">
       <ModuleHeader
-        label="Active paper position"
+        label="Pozisyon papye aktif"
         id="active-position-heading"
         meta={position.id.slice(0, 8)}
       />
@@ -129,14 +137,14 @@ function ActivePositionCard({
       </div>
 
       <div className="grid grid-cols-3 divide-x divide-edge border-y border-edge">
-        <Cell label="Exposure" value={<span className="tnum">{position.size} units</span>} />
-        <Cell label="Opened" value={<span className="tnum">{clock(position.openedAt)}</span>} />
-        <Cell label="Expires" value={<span className="tnum">{clock(position.expiresAt)}</span>} />
+        <Cell label="Ekspozisyon" value={<span className="tnum">{position.size} units</span>} />
+        <Cell label="Ouvri" value={<span className="tnum">{clock(position.openedAt)}</span>} />
+        <Cell label="Ekspire" value={<span className="tnum">{clock(position.expiresAt)}</span>} />
       </div>
 
       <div className="grid grid-cols-2 divide-x divide-edge border-b border-edge">
         <Cell
-          label="Instrument"
+          label="Enstriman"
           value={
             <>
               {position.assetSymbol} <span className="tnum text-text-3">{position.timeframe}</span>
@@ -144,18 +152,18 @@ function ActivePositionCard({
           }
         />
         <Cell
-          label="Signal"
+          label="Siyal"
           value={<span className="tnum text-text-2">{position.signalId.slice(0, 8)}</span>}
         />
       </div>
 
       <div className="grid grid-cols-2 divide-x divide-edge">
         <Cell
-          label="Simulation model"
+          label="Modèl similasyon"
           value={model ? model.name : <span className="text-text-3">None selected</span>}
         />
         <Cell
-          label="Version"
+          label="Vèsyon"
           value={model ? <span className="tnum">v{model.version}</span> : <Dash />}
         />
       </div>

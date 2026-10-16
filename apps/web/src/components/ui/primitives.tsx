@@ -15,7 +15,7 @@ import type { ReactNode } from 'react';
  * and only boxed when the box carries meaning.
  */
 
-export type Tone = 'neutral' | 'accent' | 'bull' | 'bear' | 'warn';
+export type Tone = 'neutral' | 'accent' | 'bull' | 'bear' | 'warn' | 'iris' | 'cyan';
 
 export const TONE_TEXT: Record<Tone, string> = {
   neutral: 'text-text-2',
@@ -23,31 +23,55 @@ export const TONE_TEXT: Record<Tone, string> = {
   bull: 'text-bull',
   bear: 'text-bear',
   warn: 'text-warn',
+  iris: 'text-iris',
+  cyan: 'text-cyan',
 };
 
 const TONE_CHIP: Record<Tone, string> = {
   neutral: 'border-edge-strong text-text-3',
-  accent: 'border-accent/25 bg-accent-dim text-accent',
-  bull: 'border-bull/25 bg-bull/8 text-bull',
-  bear: 'border-bear/25 bg-bear/8 text-bear',
-  warn: 'border-warn/25 bg-warn/8 text-warn',
+  accent: 'border-accent/30 bg-accent/[0.1] text-accent',
+  bull: 'border-bull/30 bg-bull/[0.08] text-bull',
+  bear: 'border-bear/30 bg-bear/[0.08] text-bear',
+  warn: 'border-warn/30 bg-warn/[0.08] text-warn',
+  iris: 'border-iris/30 bg-iris/[0.1] text-iris',
+  cyan: 'border-cyan/30 bg-cyan/[0.1] text-cyan',
+};
+
+/**
+ * How much visual weight a surface carries.
+ *
+ * The point of having variants at all: a page with eight identical cards has no
+ * hierarchy, and the reader has to read all eight to find the one that matters.
+ * `secondary` is what lets a supporting module recede.
+ */
+export type SurfaceVariant = 'default' | 'primary' | 'secondary' | 'elevated' | 'metric' | 'warn';
+
+const VARIANT: Record<SurfaceVariant, string> = {
+  default: 'panel',
+  primary: 'panel panel-primary panel-lit',
+  secondary: 'panel panel-secondary',
+  elevated: 'panel panel-elevated panel-lit',
+  metric: 'panel-metric',
+  warn: 'panel panel-warn',
 };
 
 /** A workspace surface. One hairline, layered background, restrained radius. */
 export function Surface({
   children,
   className = '',
+  variant = 'default',
   as: Element = 'section',
   ...rest
 }: {
   children: ReactNode;
   className?: string;
+  variant?: SurfaceVariant;
   as?: 'section' | 'div' | 'aside' | 'article';
   'aria-labelledby'?: string;
   'aria-label'?: string;
 }) {
   return (
-    <Element className={`panel ${className}`} {...rest}>
+    <Element className={`${VARIANT[variant]} ${className}`} {...rest}>
       {children}
     </Element>
   );
@@ -181,6 +205,8 @@ export function SegmentMeter({
     bull: 'bg-bull',
     bear: 'bg-bear',
     warn: 'bg-warn',
+    iris: 'bg-iris',
+    cyan: 'bg-cyan',
   }[tone];
 
   return (
@@ -253,7 +279,7 @@ export function Locked({
       </svg>
       <div className="flex min-w-0 flex-col gap-1">
         <p className="text-[12px] leading-relaxed text-text-3">
-          <span className="font-medium text-text-2">Sign in to view.</span> {what}
+          <span className="font-medium text-text-2">Konekte pou wè.</span> {what}
         </p>
         {hint ? <p className="text-[11px] leading-relaxed text-text-3/80">{hint}</p> : null}
       </div>
@@ -271,7 +297,7 @@ export function Locked({
  * the panel a user actually looks at.
  */
 export function failureHeadline(result: { readonly throttled?: boolean }): string {
-  return result.throttled ? 'Rate limited' : 'Unavailable';
+  return result.throttled ? 'Limite pa to' : 'Endisponib';
 }
 
 export function Dormant({
@@ -306,7 +332,7 @@ export function Dormant({
 /** Placeholder for a value that does not exist yet. Never a zero. */
 export function Absent() {
   return (
-    <span className="text-text-3" aria-label="no data">
+    <span className="text-text-3" aria-label="pa gen done">
       —
     </span>
   );

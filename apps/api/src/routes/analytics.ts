@@ -1,4 +1,5 @@
 import { CONFIDENCE_SEMANTICS, DEFAULT_EVIDENCE_THRESHOLDS } from '@binaryai/analytics';
+import { findInstrument } from '@binaryai/market-data';
 import type { AnalyticsDimension, AnalyticsQuery } from '@binaryai/types';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -72,7 +73,12 @@ function toAnalyticsQuery(parsed: BaseQuery, now: number): AnalyticsQuery {
   return {
     from,
     to,
-    ...(parsed.asset === undefined ? {} : { assetSymbol: parsed.asset }),
+    // R5 — resolved through the CATALOGUE, never taken as text. A legacy
+    // spelling binds on its canonical instrument. An UNRESOLVABLE symbol never
+    // reaches here: readQuery refuses the request, because falling back to the
+    // caller's text is exactly how a report gets labelled with a market that
+    // does not exist.
+    ...(parsed.asset === undefined ? {} : { assetSymbol: findInstrument(parsed.asset)?.symbol }),
     ...(parsed.timeframe === undefined ? {} : { timeframe: parsed.timeframe }),
     ...(parsed.strategy === undefined ? {} : { strategyKey: parsed.strategy }),
     ...(parsed.regime === undefined ? {} : { regime: parsed.regime }),
@@ -114,6 +120,36 @@ function readQuery<T extends z.ZodType>(
         request.id,
       ),
     );
+    return null;
+  }
+
+  /*
+   * An instrument the catalogue does not know is REFUSED, not echoed.
+   *
+   * This used to fall back to the caller's text, so
+   * `?asset=EURUSD-OTC` returned a 200 whose provenance read
+   * `assetSymbol: "EURUSD-OTC", instrumentScope: "instrument"` — a
+   * provenance record naming a market BinaryAI does not support, produced by
+   * nothing more than typing it into a query string. Every figure in that
+   * response was correctly empty, which made the label the only claim in it,
+   * and the label was false.
+   *
+   * 404 matches what positions and the ledger already do for the same input,
+   * so one unknown symbol cannot be refused by one endpoint and accepted by
+   * another.
+   */
+  const asked = (result.data as BaseQuery).asset;
+  if (asked !== undefined && findInstrument(asked) === null) {
+    void reply
+      .code(404)
+      .send(
+        errorBody(
+          'unknown_instrument',
+          `No instrument named "${asked}" is in the catalogue.`,
+          undefined,
+          request.id,
+        ),
+      );
     return null;
   }
 

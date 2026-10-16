@@ -33,13 +33,13 @@ const COMPONENT_LABEL: Record<string, string> = {
 export function SystemHealthStrip({ status }: { status: ApiResult<SystemStatus> }) {
   if (!status.ok) {
     return (
-      <Surface className="flex flex-col">
+      <Surface variant="secondary" className="flex flex-col">
         {status.unauthorized ? (
-          <Locked what="The API is running; component health requires a session." />
+          <Locked what="API a ap kouri; sante konpozan yo mande yon sesyon." />
         ) : (
           <div className="px-5 py-5">
             <Dormant
-              headline="API unreachable"
+              headline="API enjwenyab"
               detail={status.error}
               hint="npm run dev:api"
               hintMono
@@ -59,7 +59,7 @@ export function SystemHealthStrip({ status }: { status: ApiResult<SystemStatus> 
         : `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`;
 
   return (
-    <Surface className="flex flex-col">
+    <Surface variant="secondary" className="flex flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-edge px-5 py-3">
         <h3 className="eyebrow text-[10px]">Runtime</h3>
         <span className="flex items-center gap-3 text-[11px] text-text-3">

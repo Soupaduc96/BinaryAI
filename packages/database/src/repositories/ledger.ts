@@ -87,14 +87,46 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
       return toLedgerEntry(row);
     },
 
-    async list(accountId: string, limit = 50, offset = 0): Promise<readonly LedgerEntry[]> {
+    async list(
+      accountId: string,
+      limit = 50,
+      offset = 0,
+      assetSymbol?: string,
+    ): Promise<readonly LedgerEntry[]> {
+      /*
+       * R10 — instrument scope reaches the ledger THROUGH THE POSITION.
+       *
+       * A ledger entry has no symbol of its own, and giving it one would
+       * duplicate a fact that already lives on the position it accounts for —
+       * two places to disagree. The EXISTS below is therefore the identity
+       * relationship, not a text match.
+       *
+       * A consequence worth stating: allocations, adjustments and resets carry
+       * no `position_id`, so an instrument-scoped query correctly excludes
+       * them. They are account-wide facts and belong to no instrument.
+       */
+      const params: unknown[] = [accountId];
+      const conditions = ['l.account_id = $1'];
+
+      if (assetSymbol !== undefined) {
+        params.push(assetSymbol);
+        conditions.push(
+          `EXISTS (SELECT 1 FROM paper_positions p
+                    WHERE p.id = l.position_id AND p.asset_symbol = $${params.length})`,
+        );
+      }
+
+      params.push(limit);
+      const limitClause = `LIMIT $${params.length}`;
+      params.push(offset);
+
       const result = await executor.query<LedgerRow>(
         `SELECT ${LEDGER_COLUMNS}
-         FROM paper_ledger_entries
-         WHERE account_id = $1
-         ORDER BY occurred_at DESC, id
-         LIMIT $2 OFFSET $3`,
-        [accountId, limit, offset],
+         FROM paper_ledger_entries l
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY l.occurred_at DESC, l.id
+         ${limitClause} OFFSET $${params.length}`,
+        params,
       );
       return result.rows.map(toLedgerEntry);
     },

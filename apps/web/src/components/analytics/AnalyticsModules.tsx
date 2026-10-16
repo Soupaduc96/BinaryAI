@@ -38,10 +38,10 @@ export function PerformanceModule({
   if (!analytics.ok) {
     return (
       <Surface aria-labelledby="performance-heading" className="flex flex-col">
-        <ModuleHeader label="Performance" id="performance-heading" />
+        <ModuleHeader label="Pèfòmans" id="performance-heading" />
         {analytics.unauthorized ? (
           <Locked
-            what="Outcome analytics are scoped to your account."
+            what="Analitik rezilta yo limite ak kont ou."
             // Preserved from the previous treatment: a missing database is a
             // configuration state, and signing in will not create one.
             {...(calibration.ok && !calibration.data.persistenceConfigured
@@ -72,14 +72,14 @@ export function PerformanceModule({
   return (
     <Surface aria-labelledby="performance-heading" className="flex flex-col">
       <ModuleHeader
-        label="Performance"
+        label="Pèfòmans"
         id="performance-heading"
         meta={settled > 0 ? 'observed outcomes' : undefined}
       />
       <div className="flex flex-1 flex-col gap-5 px-5 py-5">
         {settled === 0 && overview.pendingSettlement === 0 ? (
           <Dormant
-            headline="No settled outcomes"
+            headline="Pa gen rezilta regle"
             detail="Metrics appear once signals have expired and been settled against exchange data."
             hint={
               calibration.ok && !calibration.data.persistenceConfigured
@@ -95,13 +95,13 @@ export function PerformanceModule({
                 value={<RateValue rate={observedAccuracy} />}
                 size="lg"
               />
-              <DataPair label="Settled" value={settled.toLocaleString()} size="lg" />
+              <DataPair label="Regle" value={settled.toLocaleString()} size="lg" />
               <DataPair
                 label="Mean confidence"
                 value={<ConfidenceValue value={overview.meanConfidence} />}
               />
               <DataPair
-                label="Awaiting settlement"
+                label="Ap tann règleman"
                 value={overview.pendingSettlement.toLocaleString()}
               />
             </div>
@@ -117,7 +117,7 @@ export function PerformanceModule({
             {observedAccuracy.value === null ? (
               <p className="text-[12px] leading-relaxed text-text-3">
                 {settled === 0
-                  ? 'Nothing has settled yet, so no rate can be observed.'
+                  ? 'Anyen poko regle, kidonk nou pa ka obsève okenn to.'
                   : `${settled} settled outcome(s) recorded. At least ${evidence.minimumSampleSize} are required before an accuracy figure is reported.`}
               </p>
             ) : (
@@ -161,7 +161,7 @@ export function BacktestingModule({ feed }: { feed: ApiResult<BacktestFeed> }) {
       <div className="flex flex-1 flex-col gap-5 px-5 py-5">
         {!latest ? (
           <Dormant
-            headline="No backtest runs"
+            headline="Pa gen egzekisyon backtest"
             detail="Run a strategy against a historical dataset to see win rate, return and drawdown."
             hint="POST /v1/backtest/run · npm run backtest:demo"
             hintMono
@@ -169,10 +169,10 @@ export function BacktestingModule({ feed }: { feed: ApiResult<BacktestFeed> }) {
         ) : (
           <>
             <StatRow>
-              <DataPair label="Runs" value={runs.length} size="lg" />
-              <DataPair label="Trades" value={latest.trades} size="lg" />
+              <DataPair label="Egzekisyon" value={runs.length} size="lg" />
+              <DataPair label="Trade yo" value={latest.trades} size="lg" />
               <DataPair
-                label="Win rate"
+                label="To viktwa"
                 value={
                   latest.winRate === null ? <Absent /> : `${(latest.winRate * 100).toFixed(1)}%`
                 }
@@ -217,7 +217,7 @@ export function StrategyRegistryModule({
   if (!strategies.ok) {
     return (
       <Surface aria-labelledby="strategies-heading" className="flex flex-col">
-        <ModuleHeader label="Strategy Registry" id="strategies-heading" />
+        <ModuleHeader label="Rejis estrateji" id="strategies-heading" />
         <div className="px-5 py-5">
           <Dormant headline={failureHeadline(strategies)} detail={strategies.error} />
         </div>
@@ -228,7 +228,7 @@ export function StrategyRegistryModule({
   return (
     <Surface aria-labelledby="strategies-heading" className="flex flex-col">
       <ModuleHeader
-        label="Strategy Registry"
+        label="Rejis estrateji"
         id="strategies-heading"
         meta={`${strategies.data.length} registered`}
       />

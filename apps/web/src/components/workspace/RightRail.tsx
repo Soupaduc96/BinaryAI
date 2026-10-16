@@ -88,7 +88,7 @@ export function RiskAssessmentModule({
       <Surface className="flex flex-col">
         <ModuleHead title="Risk assessment" />
         {policy.unauthorized ? (
-          <Locked what="Risk limits are per account." />
+          <Locked what="Limit risk yo se pa kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(policy)} detail={policy.error} />
@@ -157,7 +157,7 @@ export function RiskAssessmentModule({
       />
       <div className="flex flex-col divide-y divide-edge/70">
         <Row
-          label="Risk level"
+          label="Nivo risk"
           value={
             signalRisk ? (
               <span className={RISK_TONE[signalRisk] ?? 'text-text-1'}>
@@ -168,19 +168,19 @@ export function RiskAssessmentModule({
             )
           }
         />
-        <Row label="Exposure" value={<span className="tnum">{committed} units</span>} />
-        <Row label="Available" value={<span className="tnum">{available} units</span>} />
+        <Row label="Ekspozisyon" value={<span className="tnum">{committed} units</span>} />
+        <Row label="Disponib" value={<span className="tnum">{available} units</span>} />
         {/* "X of Y" rather than "X / Y": a slash reads as a ratio, and a
             reader cannot tell which side is the limit. */}
         <Row
-          label="Slots free"
+          label="Plas lib"
           value={
             <span className="tnum">
               {Math.max(0, limits.maxOpenPositions - open)} of {limits.maxOpenPositions}
             </span>
           }
         />
-        <Row label="Open positions" value={<span className="tnum">{open}</span>} />
+        <Row label="Pozisyon ouvè" value={<span className="tnum">{open}</span>} />
       </div>
 
       <div className="flex flex-col gap-2 border-t border-edge px-4 py-3">
@@ -235,7 +235,7 @@ export function AccountOverviewModule({
       <Surface className="flex flex-col">
         <ModuleHead title="Account overview" />
         {account.unauthorized ? (
-          <Locked what="A paper account belongs to a signed-in user." />
+          <Locked what="Yon kont papye apatni a yon itilizatè ki konekte." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(account)} detail={account.error} />
@@ -254,9 +254,9 @@ export function AccountOverviewModule({
     <Surface className="flex flex-col">
       <ModuleHead title="Account overview" badge="paper mode" badgeTone="warn" />
       <div className="flex flex-col divide-y divide-edge/70">
-        <Row label="Account" value={meta.name} />
+        <Row label="Kont" value={meta.name} />
         <Row
-          label="Slots free"
+          label="Plas lib"
           value={
             slotsFree === null ? (
               <Absent />
@@ -267,17 +267,17 @@ export function AccountOverviewModule({
             )
           }
         />
-        <Row label="Open positions" value={<span className="tnum">{paper.openPositions}</span>} />
+        <Row label="Pozisyon ouvè" value={<span className="tnum">{paper.openPositions}</span>} />
         {/* Never "balance": these are accounting units, not money. */}
         <Row
-          label="Exposure allocated"
+          label="Ekspozisyon alwe"
           value={<span className="tnum">{paper.allocatedUnits} units</span>}
         />
         <Row
-          label="Exposure available"
+          label="Ekspozisyon disponib"
           value={<span className="tnum">{paper.availableUnits} units</span>}
         />
-        <Row label="Live execution" value={<span className="text-bear">DISABLED</span>} />
+        <Row label="Egzekisyon an dirèk" value={<span className="text-bear">DISABLED</span>} />
       </div>
 
       {/* Below the divider, and labelled, so it cannot be read as part of the
@@ -292,7 +292,7 @@ export function AccountOverviewModule({
         {simulated?.enabled && simulated.model ? (
           <div className="flex flex-col divide-y divide-edge/70">
             <Row
-              label="Current"
+              label="Aktyèl"
               value={
                 simulated.currentUnits === null ? (
                   <Absent />
@@ -352,7 +352,7 @@ export function SystemStatusModule({ status }: { status: ApiResult<SystemStatus>
       <Surface className="flex flex-col">
         <ModuleHead title="System status" />
         {status.unauthorized ? (
-          <Locked what="The API is running; component health requires a session." />
+          <Locked what="API a ap kouri; sante konpozan yo mande yon sesyon." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={'API unreachable'} detail={status.error} />
@@ -399,7 +399,7 @@ export function SystemStatusModule({ status }: { status: ApiResult<SystemStatus>
             </div>
           );
         })}
-        <Row label="Uptime" value={<span className="tnum">{uptimeLabel}</span>} />
+        <Row label="Tan aktif" value={<span className="tnum">{uptimeLabel}</span>} />
       </div>
     </Surface>
   );

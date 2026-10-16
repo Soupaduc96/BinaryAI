@@ -38,6 +38,7 @@ export {
   type AnalysisCycleOptions,
   type AnalysisCycleResult,
   type AnalysisSkipReason,
+  type ResolvedAnalysisInstrument,
 } from './analysis-loop.js';
 
 export {
@@ -62,3 +63,14 @@ export {
   type RuntimeDeps,
   type RuntimeEvent,
 } from './runtime.js';
+
+export {
+  InvalidPlanEntryError,
+  parsePlanEntries,
+  resolveAnalysisInstrument,
+  resolveAnalysisInstruments,
+  resolvePlan,
+  resolvePlanFromConfig,
+  UnknownAnalysisInstrumentError,
+  type PlanEntryInput,
+} from './resolve-instrument.js';

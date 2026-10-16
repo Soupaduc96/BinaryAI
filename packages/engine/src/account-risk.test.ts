@@ -52,6 +52,11 @@ function context(overrides: Partial<AccountRiskContext> = {}): AccountRiskContex
     consecutiveLosses: 0,
     lastLossAt: null,
     availableUnits: 100,
+    // Default to the ACCOUNT figures, which is what a caller that does not
+    // distinguish instruments supplies — the conservative default.
+    instrumentOpenPositions: 0,
+    instrumentExposureInWindow: 0,
+    instrumentLastLossAt: null,
     ...overrides,
   };
 }

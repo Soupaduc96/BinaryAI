@@ -53,9 +53,9 @@ export function CalibrationModule({ feed }: { feed: ApiResult<CalibrationFeed> }
   if (!feed.ok) {
     return (
       <Surface aria-labelledby="calibration-heading" className="flex flex-col">
-        <ModuleHeader label="Calibration" id="calibration-heading" />
+        <ModuleHeader label="Kalibrasyon" id="calibration-heading" />
         {feed.unauthorized ? (
-          <Locked what="Calibration evidence is scoped to your account." />
+          <Locked what="Prèv kalibrasyon an limite ak kont ou." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -72,7 +72,7 @@ export function CalibrationModule({ feed }: { feed: ApiResult<CalibrationFeed> }
   return (
     <Surface aria-labelledby="calibration-heading" className="flex flex-col">
       <ModuleHeader
-        label="Calibration"
+        label="Kalibrasyon"
         id="calibration-heading"
         meta={`${calibration.methodology.method} v${calibration.methodology.version}`}
         action={
@@ -91,14 +91,14 @@ export function CalibrationModule({ feed }: { feed: ApiResult<CalibrationFeed> }
 
         <StatRow>
           <DataPair
-            label="Eligible samples"
+            label="Echantiyon eligib"
             value={calibration.eligibleSamples.toLocaleString()}
             size="lg"
           />
-          <DataPair label="Excluded" value={calibration.excludedSamples.toLocaleString()} />
-          <DataPair label="Evidence" value={<EvidenceBadge evidence={calibration.evidence} />} />
+          <DataPair label="Eskli" value={calibration.excludedSamples.toLocaleString()} />
+          <DataPair label="Prèv" value={<EvidenceBadge evidence={calibration.evidence} />} />
           <DataPair
-            label="Confidence relation"
+            label="Relasyon konfyans"
             value={<Chip tone={relationship.tone}>{relationship.label}</Chip>}
           />
         </StatRow>
@@ -107,7 +107,7 @@ export function CalibrationModule({ feed }: { feed: ApiResult<CalibrationFeed> }
 
         {populated.length === 0 ? (
           <Dormant
-            headline="No settled outcomes yet"
+            headline="Poko gen rezilta regle"
             detail={`Confidence bands populate as signals expire and settle. At least ${calibration.minimumSampleSize} settled outcomes are needed in a band before an accuracy figure is reported.`}
           />
         ) : (
@@ -165,7 +165,7 @@ export function CalibrationModule({ feed }: { feed: ApiResult<CalibrationFeed> }
 
         {calibration.divergence !== null ? (
           <DataPair
-            label="Confidence divergence"
+            label="Divèjans konfyans"
             value={<span className="tnum">{calibration.divergence.toFixed(3)}</span>}
             hint="Mean gap between a band's confidence and its observed accuracy. A diagnostic, not a probabilistic calibration error."
           />
@@ -217,7 +217,7 @@ export function ObservedBreakdown({
       <Surface className="flex flex-col">
         <ModuleHeader label={label} />
         {feed.unauthorized ? (
-          <Locked what="Per-bucket evidence is scoped to your account." />
+          <Locked what="Prèv pa bandwòl limite ak kont ou." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -237,7 +237,7 @@ export function ObservedBreakdown({
       />
       <div className="flex flex-1 flex-col gap-4 px-5 py-5">
         {groups.length === 0 ? (
-          <Dormant headline="No settled outcomes" detail={emptyDetail} />
+          <Dormant headline="Pa gen rezilta regle" detail={emptyDetail} />
         ) : (
           <>
             {/* A list, not a table. These panels sit three-up in the grid and

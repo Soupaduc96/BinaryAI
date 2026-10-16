@@ -172,33 +172,33 @@ export function ChartTools({ targetId }: { targetId: string }) {
     <div ref={containerRef} className="relative flex flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <ToolButton
-          label="Indicators"
+          label="Endikatè"
           expanded={activePanel === 'indicators'}
           controls={`${panelId}-indicators`}
           active={indicators.length > 0}
           onClick={() => setOpen(activePanel === 'indicators' ? null : 'indicators')}
         >
           <IconIndicator size={14} />
-          <span className="hidden sm:inline">Indicators</span>
+          <span className="hidden sm:inline">Endikatè</span>
           {indicators.length > 0 ? (
             <span className="tnum text-[11px]">{indicators.length}</span>
           ) : null}
         </ToolButton>
 
         <ToolButton
-          label="Overlays"
+          label="Kouch"
           expanded={activePanel === 'overlays'}
           controls={`${panelId}-overlays`}
           active={overlays.length > 0}
           onClick={() => setOpen(activePanel === 'overlays' ? null : 'overlays')}
         >
           <IconLayers size={14} />
-          <span className="hidden sm:inline">Overlays</span>
+          <span className="hidden sm:inline">Kouch</span>
           {overlays.length > 0 ? <span className="tnum text-[11px]">{overlays.length}</span> : null}
         </ToolButton>
 
         <ToolButton
-          label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          label={isFullscreen ? 'Sòti nan plen ekran' : 'Plen ekran'}
           active={isFullscreen}
           onClick={toggleFullscreen}
         >

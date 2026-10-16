@@ -53,6 +53,7 @@ interface AccountRow extends Row {
   allowed_strategies: string[] | null;
   allowed_timeframes: string[] | null;
   allowed_assets: string[] | null;
+  per_instrument_limits: unknown;
   allocated_units: string | number;
   simulation_model_id: string | null;
 }
@@ -61,7 +62,7 @@ const COLUMNS = `id, user_id, name, mode, currency, balance, day_start_balance, 
                  consecutive_losses, last_loss_at, is_default, risk_limits, created_at,
                  risk_policy_version, risk_policy_updated_at, max_position_size,
                  max_daily_exposure, allowed_strategies, allowed_timeframes, allowed_assets,
-                 allocated_units, simulation_model_id`;
+                 allocated_units, simulation_model_id, per_instrument_limits`;
 
 function toAccount(row: AccountRow): Account {
   const mode = toText(row.mode, 'account.mode');
@@ -94,6 +95,9 @@ function toAccount(row: AccountRow): Account {
     allowedStrategies: row.allowed_strategies,
     allowedTimeframes: row.allowed_timeframes as Account['allowedTimeframes'],
     allowedAssets: row.allowed_assets,
+    // NULL stays null: no instrument-specific limits is the default, and the
+    // account limits alone then behave exactly as they always have.
+    perInstrument: (row.per_instrument_limits ?? null) as Account['perInstrument'],
     allocatedUnits: toNumber(row.allocated_units, 'account.allocated_units'),
     // NULL means no simulation is selected, which is a real state rather than
     // a missing one: the account keeps exposure-only accounting and has no
@@ -164,7 +168,8 @@ export function createAccountRepository(executor: SqlExecutor): AccountRepositor
                 max_daily_exposure = $6,
                 allowed_strategies = $7,
                 allowed_timeframes = $8,
-                allowed_assets = $9
+                allowed_assets = $9,
+                per_instrument_limits = $10::jsonb
           WHERE id = $1
           RETURNING ${COLUMNS}`,
         [
@@ -177,6 +182,7 @@ export function createAccountRepository(executor: SqlExecutor): AccountRepositor
           policy.allowedStrategies === null ? null : [...policy.allowedStrategies],
           policy.allowedTimeframes === null ? null : [...policy.allowedTimeframes],
           policy.allowedAssets === null ? null : [...policy.allowedAssets],
+          policy.perInstrument === null ? null : toJsonParam(policy.perInstrument),
         ],
       );
       const row = result.rows[0];

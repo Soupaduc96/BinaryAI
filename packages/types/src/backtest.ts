@@ -86,7 +86,24 @@ export interface BacktestMetrics {
 }
 
 export interface DatasetDescriptor {
+  /**
+   * The instrument this run describes.
+   *
+   * R8. A CANONICAL catalogue symbol whenever the instrument could be
+   * resolved, so a stored run can be joined to signals, positions and
+   * analytics for the same market. When it could not be resolved this is the
+   * caller's own text, and `instrumentIdentity` says so.
+   */
   readonly asset: string;
+  /**
+   * Whether `asset` is an established identity or merely the caller's label.
+   *
+   * A backtest over a hand-supplied series is legitimate and is not rejected,
+   * but a run whose market BinaryAI cannot name must not be presentable as
+   * though it had one. Stated explicitly rather than left to be inferred from
+   * an 'unknown' asset class.
+   */
+  readonly instrumentIdentity: 'catalogue' | 'unresolved';
   readonly timeframe: Timeframe;
   readonly source: MarketDataSource;
   readonly candleCount: number;

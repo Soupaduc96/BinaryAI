@@ -1,5 +1,6 @@
 import type {
   Candle,
+  CandleCoverage,
   CandleRangeQuery,
   CandleRepository,
   CandleSeries,
@@ -170,6 +171,41 @@ export function createCandleRepository(executor: SqlExecutor): CandleRepository 
         [assetSymbol, timeframe],
       );
       return toNumber(result.rows[0]?.total ?? 0, 'candles.count');
+    },
+
+    /**
+     * Stored coverage for every instrument and timeframe at once.
+     *
+     * One grouped scan rather than a query per instrument. The instrument
+     * picker asks "which of these thirty-six catalogue entries do we actually
+     * hold candles for" on every render; doing that one symbol at a time would
+     * be thirty-six round trips to answer a question the index already knows.
+     *
+     * `candles_recent_idx` is (asset_id, timeframe, opened_at DESC), so the
+     * GROUP BY is served from the index rather than a heap scan.
+     */
+    async coverage(): Promise<readonly CandleCoverage[]> {
+      const result = await executor.query<{
+        symbol: string;
+        timeframe: string;
+        total: string;
+        last_at: Date;
+      }>(
+        `SELECT a.symbol,
+                c.timeframe,
+                count(*)::text  AS total,
+                max(c.opened_at) AS last_at
+           FROM candles c
+           JOIN market_assets a ON a.id = c.asset_id
+          GROUP BY a.symbol, c.timeframe`,
+      );
+
+      return result.rows.map((row) => ({
+        assetSymbol: row.symbol,
+        timeframe: toTimeframe(row.timeframe),
+        candles: toNumber(row.total, 'coverage.total'),
+        lastCandleAt: toEpochMs(row.last_at, 'coverage.last_at'),
+      }));
     },
   };
 }

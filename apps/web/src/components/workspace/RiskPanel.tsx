@@ -59,7 +59,7 @@ export function RiskPanel({
   return (
     <Surface aria-labelledby="risk-heading" className="flex flex-col">
       <ModuleHeader
-        label="Risk Assessment"
+        label="Evalyasyon risk"
         id="risk-heading"
         action={
           <span className="flex items-center gap-2">
@@ -73,12 +73,12 @@ export function RiskPanel({
 
       <div className="flex flex-col divide-y divide-edge/70 px-5 py-1">
         <Line
-          label="Risk level"
+          label="Nivo risk"
           value={signal ? signal.riskLevel.toUpperCase() : <Absent />}
           tone={signal ? (RISK_TONE[signal.riskLevel] ?? 'neutral') : 'neutral'}
         />
         <Line
-          label="Volatility"
+          label="Volatilite"
           value={
             signal?.indicators.find((indicator) => indicator.key === 'atr_percent')?.value != null
               ? `${(signal.indicators?.find((i) => i.key === 'atr_percent')?.value ?? 0).toFixed(3)}%`
@@ -86,7 +86,7 @@ export function RiskPanel({
           }
         />
         <Line
-          label="Signal quality"
+          label="Kalite siyal"
           value={
             signal ? (
               `${signal.confirmations?.length ?? 0} / ${signal.conflicts?.length ?? 0} conflict`
@@ -96,16 +96,16 @@ export function RiskPanel({
           }
         />
         <Line
-          label="Confidence quality"
+          label="Kalite konfyans"
           value={signal ? signal.confidence.calibration.replace(/_/g, ' ') : <Absent />}
           tone={signal ? 'warn' : 'neutral'}
         />
         <Line
-          label="Market condition"
+          label="Kondisyon mache"
           value={signal ? signal.marketRegime.replace(/_/g, ' ') : <Absent />}
         />
         <Line
-          label="Recommendation"
+          label="Rekòmandasyon"
           value={signal ? signal.recommendation.replace(/_/g, ' ').toUpperCase() : 'WAIT'}
           tone={signal?.recommendation === 'consider' ? 'bull' : 'warn'}
         />
@@ -114,12 +114,12 @@ export function RiskPanel({
       <div className="mt-auto border-t border-edge px-5 py-4">
         <div className="flex flex-col divide-y divide-edge/70">
           <Line
-            label="Live trading"
+            label="Trading an dirèk"
             value={liveDisabled ? 'DISABLED' : 'ENABLED'}
             tone={liveDisabled ? 'bull' : 'bear'}
           />
-          <Line label="Broker" value="NOT CONNECTED" />
-          <Line label="Open positions" value="0" />
+          <Line label="Courtier" value="NOT CONNECTED" />
+          <Line label="Pozisyon ouvè" value="0" />
         </div>
         <p className="pt-3 text-[12px] leading-relaxed text-text-3">
           {signal

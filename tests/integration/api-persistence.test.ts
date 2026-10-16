@@ -14,7 +14,16 @@ import { createTestDatabase, migrate, truncateAll, type TestDatabase } from '../
  * route must degrade to a stated reason rather than an error.
  */
 
-const series = syntheticUptrend(300);
+/**
+ * A synthetic series, relabelled to a REAL catalogue instrument.
+ *
+ * The candles stay synthetic —  still says so, and nothing here
+ * pretends otherwise. Only the symbol changes, because persisting a signal now
+ * requires a catalogue instrument (D1): the route refuses to write a signal for
+ * a symbol BinaryAI has no provider and no candles for, which is precisely the
+ * hole that let a phantom instrument strand account exposure.
+ */
+const series = { ...syntheticUptrend(300), asset: 'BTCUSD' };
 const evaluateBody = { series, strategyId: 'trend-momentum', persist: true };
 
 let context: TestDatabase;

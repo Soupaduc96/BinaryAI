@@ -47,13 +47,39 @@ export interface AnalysisCycleResult {
 export interface AnalysisCycleDeps {
   readonly repositories: Repositories | null;
   readonly strategy: Strategy;
-  readonly asset: MarketAsset;
+  /**
+   * THE instrument this cycle analyses — the single source of truth.
+   *
+   * D3: this used to sit beside an independent `options.symbol`, and nothing
+   * cross-checked them. `deps.asset` decided which `market_assets` row was
+   * upserted and what metadata the strategy saw; `options.symbol` decided which
+   * candles were loaded and what the signal was stamped with. Production
+   * happened to pass matching values, so the divergence was invisible — and
+   * multi-asset analysis means a loop over instruments, which is exactly the
+   * shape where a mismatched pair is easy to build and impossible to notice.
+   *
+   * One object now answers both questions. There is no second string to
+   * disagree with it.
+   */
+  readonly instrument: ResolvedAnalysisInstrument;
   readonly now?: () => number;
 }
 
-export interface AnalysisCycleOptions {
+/**
+ * An instrument resolved from the catalogue, ready to be analysed.
+ *
+ * Carries canonical identity AND the persisted projection together, so no
+ * downstream function has to rebuild either from loose strings.
+ */
+export interface ResolvedAnalysisInstrument {
+  /** Canonical BinaryAI symbol. Names the candles AND stamps the signal. */
   readonly symbol: string;
   readonly timeframe: Timeframe;
+  /** The row written to `market_assets`, derived from the catalogue. */
+  readonly asset: MarketAsset;
+}
+
+export interface AnalysisCycleOptions {
   /** Extra bars above the strategy's minimum, for indicator stability. */
   readonly warmupBuffer?: number;
   /** Missing intervals tolerated inside the analysis window. */
@@ -112,15 +138,30 @@ export function countMissingIntervals(series: CandleSeries): number {
 
 export async function runAnalysisCycle(
   deps: AnalysisCycleDeps,
-  options: AnalysisCycleOptions,
+  options: AnalysisCycleOptions = {},
 ): Promise<AnalysisCycleResult> {
-  const { repositories, strategy, asset, now = Date.now } = deps;
+  const { repositories, strategy, instrument, now = Date.now } = deps;
+  // Both derived from ONE object, so they cannot disagree.
+  const { symbol, timeframe, asset } = instrument;
   const {
-    symbol,
-    timeframe,
     warmupBuffer = DEFAULT_ANALYSIS_OPTIONS.warmupBuffer,
     maxMissingIntervals = DEFAULT_ANALYSIS_OPTIONS.maxMissingIntervals,
   } = options;
+
+  /*
+   * The one invariant this refactor exists to make impossible to violate.
+   *
+   * A `ResolvedAnalysisInstrument` is built by `resolveAnalysisInstrument` from
+   * the catalogue, so these always match. The check is cheap and it converts a
+   * silent cross-instrument corruption — candles from one instrument stored
+   * against another's asset row — into an immediate, named failure.
+   */
+  if (asset.symbol !== symbol) {
+    throw new Error(
+      `Analysis instrument is incoherent: candles are for "${symbol}" but the asset row is ` +
+        `"${asset.symbol}". A resolved instrument must name one instrument.`,
+    );
+  }
 
   if (!repositories) {
     return {

@@ -173,8 +173,23 @@ if (!step('Migrations are idempotent', 'node scripts/db-migrate.mjs --status')) 
  * in a fixture). Nothing about the assertions changes — the same tests run
  * against the same server, just not all at once. The cost is wall-clock time,
  * which is the right thing to spend to get a truthful result.
+ *
+ * PHASE 11C: `--maxWorkers=1` turned out not to be enough. It caps the number
+ * of worker processes, but vitest still overlapped one file's teardown with
+ * the next file's startup, and against a SHARED server that is enough for
+ * `truncateAll()` in a beforeEach to deadlock: one fork holds an
+ * AccessExclusiveLock for its TRUNCATE while another holds a RowShareLock from
+ * a query still in flight. Observed as `deadlock detected` and
+ * `timeout exceeded when trying to connect`, in a DIFFERENT unrelated suite on
+ * each run — market-data one time, simulation-catalogue the next — while every
+ * one of those suites passed on its own against the same server.
+ *
+ * `--no-file-parallelism` removes the overlap and the whole integration suite
+ * goes from 432/448 with a worker crash to 448/448. Against PGlite this
+ * changes nothing, because there each file gets its own engine and there is no
+ * shared server to contend for.
  */
-const SERIAL = '--maxWorkers=1';
+const SERIAL = '--maxWorkers=1 --no-file-parallelism';
 
 if (!step('Database suite (incl. concurrency)', `npx vitest run tests/db ${SERIAL}`)) {
   await fail('tests/db');

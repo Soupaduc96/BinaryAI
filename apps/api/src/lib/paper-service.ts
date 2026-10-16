@@ -165,6 +165,9 @@ function toPolicy(account: Account): AccountRiskPolicy {
     allowedStrategies: account.allowedStrategies,
     allowedTimeframes: account.allowedTimeframes,
     allowedAssets: account.allowedAssets,
+    // Not persisted yet: per-instrument limits are configured through the
+    // policy update path and stored alongside the other overrides.
+    perInstrument: account.perInstrument ?? null,
   };
 }
 
@@ -197,10 +200,23 @@ export function createPaperService(deps: PaperServiceDeps): PaperService {
     };
   }
 
-  async function buildContext(repos: Repositories, account: Account, at: number) {
+  /**
+   * Live account state, optionally also scoped to the instrument being acted on.
+   *
+   * R4: the instrument counts come from the same query, and default to the
+   * ACCOUNT totals when no instrument was named. That default is the
+   * conservative one — an instrument limit then behaves like the account limit
+   * rather than being silently unenforced.
+   */
+  async function buildContext(
+    repos: Repositories,
+    account: Account,
+    at: number,
+    assetSymbol?: string,
+  ) {
     const window = exposureWindow(at);
     const [activity, committed] = await Promise.all([
-      repos.positions.activity(account.id, window.fromMs, at),
+      repos.positions.activity(account.id, window.fromMs, at, assetSymbol),
       repos.ledger.committed(account.id),
     ]);
 
@@ -211,6 +227,9 @@ export function createPaperService(deps: PaperServiceDeps): PaperService {
       consecutiveLosses: activity.consecutiveLosses,
       lastLossAt: activity.lastLossAt,
       availableUnits: Math.max(0, account.allocatedUnits - committed),
+      instrumentOpenPositions: activity.instrumentOpenPositions ?? activity.openPositions,
+      instrumentExposureInWindow: activity.instrumentExposureInWindow ?? activity.exposureInWindow,
+      instrumentLastLossAt: activity.instrumentLastLossAt ?? activity.lastLossAt,
     };
   }
 
@@ -267,7 +286,7 @@ export function createPaperService(deps: PaperServiceDeps): PaperService {
         };
       }
 
-      const context = await buildContext(repositories, account, at);
+      const context = await buildContext(repositories, account, at, candidate.assetSymbol);
       return evaluateAccountAction({ policy, signal: candidate, context, size, now: at });
     },
 
@@ -316,7 +335,7 @@ export function createPaperService(deps: PaperServiceDeps): PaperService {
           };
         }
 
-        const context = await buildContext(tx, account, at);
+        const context = await buildContext(tx, account, at, candidate.assetSymbol);
         const decision = evaluateAccountAction({
           policy,
           signal: candidate,

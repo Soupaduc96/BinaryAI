@@ -137,12 +137,17 @@ export function AnalysisMatrix({ detail }: { detail: PersistedSignal | null }) {
   return (
     <Surface aria-labelledby="analysis-heading" className="flex flex-col">
       <ModuleHeader
-        label="Market Analysis"
+        label="Analiz mache"
         id="analysis-heading"
         meta={detail ? `${indicatorCount} readings` : 'awaiting data'}
       />
 
-      <div className="px-2 py-1">
+      {/* Four columns, the last a fixed-width eight-segment meter, give this
+          table an intrinsic minimum around 394px — wider than a 390px phone.
+          Without its own scroller it widened the document instead of itself,
+          which was invisible until Analysis became a route of its own and the
+          table stopped sharing a row with something wider. */}
+      <div className="overflow-x-auto px-2 py-1">
         <table className="w-full border-collapse">
           <caption className="sr-only">
             Market analysis by dimension: reading, state and strength

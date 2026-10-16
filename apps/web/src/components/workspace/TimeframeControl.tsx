@@ -48,7 +48,7 @@ export function TimeframeControl({
   return (
     <div
       role="group"
-      aria-label="Chart timeframe"
+      aria-label="Entèval graf"
       aria-busy={pending}
       className={`flex w-max items-center gap-px rounded-md border border-edge bg-surface-2 p-px transition-opacity ${
         pending ? 'opacity-60' : ''

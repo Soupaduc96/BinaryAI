@@ -17,6 +17,7 @@ export * from './simulation-model.js';
 export * from './ai.js';
 export * from './events.js';
 export * from './market-data.js';
+export * from './instrument.js';
 export * from './auth.js';
 export * from './analytics.js';
 export * from './analytics-repository.js';

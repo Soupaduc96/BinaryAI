@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ComponentStatus } from '@binaryai/types';
-import { TONE_DOT, TONE_TEXT, type Indicator } from '@/lib/system-state';
+import { TONE_TEXT, type Indicator } from '@/lib/system-state';
+import { StatusMark, kindFromTone } from '@/components/ui/status';
 
 /**
  * The operating-state cluster, made openable.
@@ -77,16 +78,18 @@ export function StatusMenu({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label="System state — open for detail"
-        className={`flex items-center divide-x divide-edge rounded-[7px] border bg-surface-1/60 transition-colors [&>*]:px-3 [&>*]:py-[7px] ${
-          open ? 'border-accent/40' : 'border-edge hover:border-edge-strong'
+        aria-label="Eta sistèm nan — louvri pou detay"
+        className={`flex items-center divide-x divide-edge/80 rounded-lg border bg-surface-2/50 [&>*]:px-3 [&>*]:py-[7px] ${
+          open
+            ? 'border-accent/45 bg-accent/[0.06]'
+            : 'border-edge hover:border-edge-strong hover:bg-surface-2/80'
         }`}
       >
         {pills.map((pill) => (
           <span key={pill.label} className="inline-flex items-center gap-2 whitespace-nowrap">
-            <span
-              aria-hidden
-              className={`h-[5px] w-[5px] shrink-0 rounded-full ${TONE_DOT[pill.indicator.tone]}`}
+            <StatusMark
+              kind={kindFromTone(pill.indicator.tone, pill.indicator.value)}
+              label={`${pill.label}: ${pill.indicator.value}`}
             />
             <span className="text-[9.5px] tracking-[0.14em] text-text-3 uppercase">
               {pill.label}
@@ -103,22 +106,22 @@ export function StatusMenu({
           ref={panelRef}
           id={panelId}
           role="dialog"
-          aria-label="System state"
-          className="panel absolute top-11 right-0 z-40 flex w-[360px] flex-col gap-2 p-3.5"
+          aria-label="Eta sistèm"
+          className="panel panel-primary animate-rise absolute top-12 right-0 z-40 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2 p-3.5"
         >
-          <p className="telemetry-label">Components</p>
+          <p className="telemetry-label">Konpozan</p>
 
           {components.length === 0 ? (
             <p className="text-[12px] text-text-3">
-              The status endpoint did not answer, so there is nothing to report here. The pills
-              above show what the dashboard could determine on its own.
+              Pwen estati a pa reponn, kidonk pa gen anyen pou rapòte isit la. Pastiy anwo yo montre
+              sa entèfas la te ka detèmine pou kont li.
             </p>
           ) : (
             <ul className="flex max-h-[320px] flex-col gap-1.5 overflow-y-auto">
               {components.map((component) => (
                 <li
                   key={component.component}
-                  className="flex flex-col gap-1 rounded-[6px] border border-edge bg-surface-2 px-2.5 py-2"
+                  className="flex flex-col gap-1 rounded-lg border border-edge bg-surface-2/70 px-2.5 py-2"
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span className="text-[12px] text-text-2">{label(component.component)}</span>
@@ -145,9 +148,9 @@ export function StatusMenu({
           <a
             href="#system-heading"
             onClick={() => setOpen(false)}
-            className="rounded-[6px] border border-edge px-2.5 py-1.5 text-center text-[11px] text-text-2 transition-colors hover:border-edge-strong hover:text-text-1"
+            className="rounded-lg border border-edge px-2.5 py-1.5 text-center text-[11px] text-text-2 hover:border-accent/40 hover:text-text-1"
           >
-            Open the system section
+            Louvri seksyon sistèm nan
           </a>
         </div>
       ) : null}

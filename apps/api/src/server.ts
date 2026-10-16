@@ -88,8 +88,22 @@ async function main(): Promise<void> {
       ingestion: workers.ingestion.enabled,
       analysis: workers.analysis.enabled,
       settlement: workers.settlement.enabled,
-      symbol: workers.analysis.symbol,
-      timeframe: workers.analysis.timeframe,
+      // EVERY analysed instrument, not just the first. This line said
+      // `symbol: 'BTCUSD'` on a four-instrument plan — the same class of
+      // false statement R6 removed from the API, left behind in the boot log,
+      // where it is the first thing an operator reads and the last thing
+      // anyone thinks to check.
+      analysisSymbols: workers.analysis.symbols,
+      // The PLAN, not a single timeframe. `workers.analysis.timeframe` is only
+      // the default applied to entries that name none, so logging it beside a
+      // four-instrument plan said "1m" for a plan containing EURUSD@1h and
+      // AAPL@1d. The configured text carries each instrument's own timeframe.
+      analysisPlan:
+        workers.analysis.configured === ''
+          ? `${workers.analysis.symbol}@${workers.analysis.timeframe}`
+          : workers.analysis.configured,
+      ingestionPlan:
+        workers.ingestion.configured === '' ? `(follows analysis)` : workers.ingestion.configured,
     },
     'continuous workers',
   );
@@ -99,8 +113,6 @@ async function main(): Promise<void> {
   if ((workers.analysis.enabled || workers.settlement.enabled) && !persistence) {
     app.log.warn('Analysis/settlement are enabled but no DATABASE_URL is set; not starting.');
   }
-  context.runtime.start();
-
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
     if (shuttingDown) return;
@@ -128,6 +140,19 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
   await app.listen({ host: config.server.host, port: config.server.port });
+
+  /*
+   * Workers start only AFTER the port is bound.
+   *
+   * They used to start first, which meant a failed bind — a second instance
+   * launched against an already-running one — spent the gap before
+   * `process.exit(1)` analysing and ingesting into the SAME database as the
+   * instance already serving. Brief, but it is a second writer nobody asked
+   * for, and `exit(1)` never drains it: whatever was in flight is abandoned
+   * rather than stopped. Binding first makes a doomed process do no work at
+   * all, which is the only safe amount for a process that is about to die.
+   */
+  context.runtime.start();
 }
 
 main().catch((error: unknown) => {

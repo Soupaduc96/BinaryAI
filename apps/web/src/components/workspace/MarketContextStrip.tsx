@@ -59,31 +59,99 @@ export function MarketContextStrip({
   timeframe,
   instrument,
   series,
+  provider: instrumentProvider,
+  marketState,
+  stalenessThresholdSeconds = 300,
 }: {
   marketData: ApiResult<MarketDataFeed>;
   timeframe: Timeframe;
   instrument: string | null;
   series: CandleSeries | null;
+  /**
+   * The provider serving THIS instrument's asset class.
+   *
+   * Passed in rather than read from the market-data status, which reports the
+   * PRIMARY provider only. On a multi-asset deployment those differ, and the
+   * strip cheerfully labelled AAPL as sourced from `COINBASE EXCHANGE` —
+   * naming the wrong venue for the price on screen.
+   *
+   * Undefined falls back to the primary, which is correct on a single-provider
+   * deployment and is what every caller without an instrument in hand needs.
+   */
+  provider?: { displayName: string; dataOrigin: string } | null;
+  /**
+   * How fresh THIS instrument's newest stored candle is, in seconds.
+   *
+   * D6. The MARKET cell used to render a single global connection state derived
+   * from the newest candle across every instrument — dominated by whichever one
+   * the worker polls. AAPL therefore showed `MARKET LIVE` beside
+   * `LAST UPDATE 23h ago`: two cells of the same strip contradicting each other.
+   * Undefined falls back to the global state, which is correct only when no
+   * instrument is in view.
+   */
+  /**
+   * The API's per-instrument, per-timeframe verdict, when the caller has one.
+   *
+   * R7. Preferred over deriving freshness here, so the strip and the capability
+   * panel cannot disagree about the same instrument. Falls back to the local
+   * derivation when absent — which is correct for a caller with no timeframe.
+   */
+  marketState?: { state: string; ageSeconds: number | null } | null;
+  stalenessThresholdSeconds?: number;
 }) {
   const status = marketData.ok ? marketData.data.status : null;
-  const state = status
-    ? STATE_LABEL[status.state]
-    : { label: 'UNKNOWN', health: 'unavailable' as HealthKind };
-
-  const provider = marketData.ok ? marketData.data.provider : null;
-  const lastCandleAt = series?.candles.at(-1)?.timestamp ?? status?.lastCandleAt ?? null;
+  const lastCandleAt = series?.candles.at(-1)?.timestamp ?? null;
   const ageSeconds =
     lastCandleAt === null ? null : Math.max(Math.round((Date.now() - lastCandleAt) / 1000), 0);
 
+  /*
+   * The MARKET cell now describes THIS INSTRUMENT.
+   *
+   * Derived from the candles actually on screen rather than from the global
+   * status, so the cell cannot claim LIVE for an instrument whose newest bar is
+   * a day old. The provider-level state is still consulted for the cases only
+   * it can answer — nothing configured, or the provider unreachable — because
+   * those are true regardless of which instrument is selected.
+   */
+  const state = ((): { label: string; health: HealthKind } => {
+    if (!status) return { label: 'UNKNOWN', health: 'unavailable' };
+    // Provider-level facts outrank per-instrument freshness: there is no such
+    // thing as fresh data from a provider that is not configured.
+    if (status.state === 'not_configured' || status.state === 'disconnected') {
+      return STATE_LABEL[status.state];
+    }
+    if (instrument === null) return STATE_LABEL[status.state];
+
+    // The API's verdict wins when supplied: one source, one answer, and the
+    // strip cannot contradict the capability panel beside it.
+    if (marketState) {
+      if (marketState.state === 'live') return { label: 'LIVE', health: 'ok' };
+      if (marketState.state === 'stale') return { label: 'STALE', health: 'degraded' };
+      if (marketState.state === 'no_data') return { label: 'NO DATA', health: 'degraded' };
+      return { label: 'WAITING', health: 'not_configured' };
+    }
+
+    if (ageSeconds === null) return { label: 'NO DATA', health: 'degraded' };
+    return ageSeconds > stalenessThresholdSeconds
+      ? { label: 'STALE', health: 'degraded' }
+      : { label: 'LIVE', health: 'ok' };
+  })();
+
+  const provider =
+    instrumentProvider !== undefined
+      ? instrumentProvider
+      : marketData.ok
+        ? marketData.data.provider
+        : null;
   // Server-rendered on a force-dynamic page: this is request time.
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
   return (
     <section
-      aria-label="Market context"
+      aria-label="Kontèks mache"
       className="grid grid-cols-2 divide-edge/60 border-b border-edge bg-surface-1/35 sm:grid-cols-3 sm:divide-x lg:grid-cols-6"
     >
-      <Cell label="Instrument" className="border-b border-edge/60 sm:border-b-0">
+      <Cell label="Enstriman" className="border-b border-edge/60 sm:border-b-0">
         {instrument ? (
           <span className="truncate whitespace-nowrap">{instrument}</span>
         ) : (
@@ -93,16 +161,16 @@ export function MarketContextStrip({
         )}
       </Cell>
 
-      <Cell label="Timeframe" className="border-b border-edge sm:border-b-0">
+      <Cell label="Entèval" className="border-b border-edge sm:border-b-0">
         <TimeframeReadout timeframe={timeframe} />
       </Cell>
 
-      <Cell label="Market" className="border-b border-edge/60 lg:border-b-0">
+      <Cell label="Mache" className="border-b border-edge/60 lg:border-b-0">
         <StatusDot health={state.health} />
         <span className="tnum">{state.label}</span>
       </Cell>
 
-      <Cell label="Data source" className="border-b border-edge lg:border-b-0">
+      <Cell label="Sous done" className="border-b border-edge lg:border-b-0">
         {provider ? (
           <span
             className="tnum truncate text-[13px]"
@@ -115,7 +183,7 @@ export function MarketContextStrip({
         )}
       </Cell>
 
-      <Cell label="Last update">
+      <Cell label="Dènye mizajou">
         {lastCandleAt === null ? (
           <Absent />
         ) : (
@@ -125,7 +193,7 @@ export function MarketContextStrip({
         )}
       </Cell>
 
-      <Cell label="Session">
+      <Cell label="Sesyon">
         <span className="tnum text-[13px] text-text-2">{now}Z</span>
       </Cell>
     </section>

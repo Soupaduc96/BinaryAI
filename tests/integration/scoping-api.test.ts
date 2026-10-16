@@ -62,8 +62,22 @@ async function signUp(email: string): Promise<string> {
 }
 
 /** Runs the real decision pipeline and stores the result for this caller. */
+/**
+ * Logical test identities mapped to REAL catalogue instruments.
+ *
+ * These tests use a distinct symbol per caller to prove that ownership — not
+ * the instrument — is what scopes a signal. Persisting now requires a catalogue
+ * instrument (D1), so each logical name maps to a real one. The candles remain
+ * synthetic and are still labelled as such.
+ */
+const SCOPE_INSTRUMENT: Record<string, string> = {
+  SCOPE: 'BTCUSD',
+  ALICE: 'ETHUSD',
+  BOB: 'EURUSD',
+};
+
 async function evaluateAndStore(cookie: string | null, symbol = 'SCOPE'): Promise<string | null> {
-  const series = syntheticUptrend(300);
+  const series = { ...syntheticUptrend(300), asset: SCOPE_INSTRUMENT[symbol] ?? 'BTCUSD' };
   const response = await app.inject({
     method: 'POST',
     url: '/v1/signals/evaluate',
@@ -71,9 +85,10 @@ async function evaluateAndStore(cookie: string | null, symbol = 'SCOPE'): Promis
     payload: {
       strategyId: 'trend-momentum',
       persist: true,
-      asset: { symbol, displayName: symbol, assetClass: 'crypto', pricePrecision: 2 },
+      // No caller-supplied : it is no longer trusted, and the series
+      // symbol is what the server resolves through the catalogue.
       series: {
-        asset: symbol,
+        asset: series.asset,
         timeframe: series.timeframe,
         source: series.source,
         candles: series.candles,
@@ -100,11 +115,10 @@ describe('signal ownership', () => {
       payload: {
         strategyId: 'trend-momentum',
         persist: true,
-        asset: { symbol: 'SCOPE', displayName: 'SCOPE', assetClass: 'crypto', pricePrecision: 2 },
         series: (() => {
           const series = syntheticUptrend(300);
           return {
-            asset: 'SCOPE',
+            asset: SCOPE_INSTRUMENT['SCOPE'],
             timeframe: series.timeframe,
             source: series.source,
             candles: series.candles,
@@ -127,11 +141,10 @@ describe('signal ownership', () => {
       payload: {
         strategyId: 'trend-momentum',
         persist: true,
-        asset: { symbol: 'SCOPE', displayName: 'SCOPE', assetClass: 'crypto', pricePrecision: 2 },
         series: (() => {
           const series = syntheticUptrend(300);
           return {
-            asset: 'SCOPE',
+            asset: SCOPE_INSTRUMENT['SCOPE'],
             timeframe: series.timeframe,
             source: series.source,
             candles: series.candles,
@@ -294,9 +307,11 @@ describe('machine token scope', () => {
     const payload = (symbol: string) => ({
       strategyId: 'trend-momentum',
       persist: true,
-      asset: { symbol, displayName: symbol, assetClass: 'crypto', pricePrecision: 2 },
+      // The logical name maps to a real catalogue instrument; persisting a
+      // signal for an unknown symbol is refused (D1). Ownership, not the
+      // instrument, is what these tests are about.
       series: {
-        asset: symbol,
+        asset: SCOPE_INSTRUMENT[symbol] ?? 'BTCUSD',
         timeframe: series.timeframe,
         source: series.source,
         candles: series.candles,

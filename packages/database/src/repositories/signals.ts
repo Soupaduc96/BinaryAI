@@ -430,13 +430,41 @@ export function createSignalRepository(deps: SignalRepositoryDeps): SignalReposi
         decided_at: Date;
         expires_at: Date;
       }>(
-        `SELECT s.id, s.signal_key, s.asset_symbol, s.timeframe, s.direction, s.price,
-                s.decided_at, s.expires_at
-         FROM signals s
-         WHERE s.expires_at <= $1
-           AND s.direction <> 'none'
-           AND NOT EXISTS (SELECT 1 FROM signal_outcomes o WHERE o.signal_id = s.id)
-         ORDER BY s.expires_at ASC
+        /*
+         * R17 — FAIR ACROSS INSTRUMENTS.
+         *
+         * A plain `ORDER BY expires_at ASC LIMIT 100` is oldest-first across
+         * every instrument, which is fair only while one instrument exists. A
+         * 1m instrument produces sixty signals an hour and a 1d instrument
+         * produces one; the 1m backlog fills every batch and the daily
+         * instrument waits behind it, for as long as the backlog lasts.
+         *
+         * The window function interleaves them instead: each instrument's
+         * pending signals are numbered oldest-first, and the batch is ordered
+         * by that rank BEFORE expiry. So the batch takes the oldest signal from
+         * every instrument, then the second oldest from every instrument, and
+         * so on — round-robin, in one query, with no per-instrument round trip
+         * and nothing to keep in memory between cycles.
+         *
+         * Instruments with nothing pending cost nothing: they contribute no
+         * rows, so the batch simply fills from those that do. Oldest-first
+         * ordering WITHIN an instrument is preserved exactly.
+         */
+        `WITH pending AS (
+           SELECT s.id, s.signal_key, s.asset_symbol, s.timeframe, s.direction, s.price,
+                  s.decided_at, s.expires_at,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY s.asset_symbol ORDER BY s.expires_at ASC, s.id
+                  ) AS instrument_rank
+           FROM signals s
+           WHERE s.expires_at <= $1
+             AND s.direction <> 'none'
+             AND NOT EXISTS (SELECT 1 FROM signal_outcomes o WHERE o.signal_id = s.id)
+         )
+         SELECT id, signal_key, asset_symbol, timeframe, direction, price,
+                decided_at, expires_at
+         FROM pending
+         ORDER BY instrument_rank ASC, expires_at ASC, id
          LIMIT $2`,
         [toTimestamp(before), limit],
       );

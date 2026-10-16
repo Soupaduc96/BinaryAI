@@ -61,9 +61,9 @@ export function PaperAccountModule({ feed }: { feed: ApiResult<PaperAccountFeed>
   if (!feed.ok) {
     return (
       <Surface aria-labelledby="paper-heading" className="flex flex-col">
-        <ModuleHeader label="Paper account" id="paper-heading" />
+        <ModuleHeader label="Kont papye" id="paper-heading" />
         {feed.unauthorized ? (
-          <Locked what="A paper account belongs to a signed-in user." />
+          <Locked what="Yon kont papye apatni a yon itilizatè ki konekte." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -79,7 +79,7 @@ export function PaperAccountModule({ feed }: { feed: ApiResult<PaperAccountFeed>
   return (
     <Surface aria-labelledby="paper-heading" className="flex flex-col">
       <ModuleHeader
-        label="Paper account"
+        label="Kont papye"
         id="paper-heading"
         meta={paper.unit}
         // Says what this is on every render. A user must never wonder whether
@@ -89,28 +89,25 @@ export function PaperAccountModule({ feed }: { feed: ApiResult<PaperAccountFeed>
       <div className="flex flex-1 flex-col gap-5 px-5 py-5">
         {!configured ? (
           <Dormant
-            headline="Accounting model not configured"
+            headline="Modèl kontablite pa konfigire"
             detail="This account has no unit allocation, so exposure cannot be tracked. No balance is shown because none exists."
           />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-x-6 gap-y-5">
               <DataPair
-                label="Available"
+                label="Disponib"
                 value={<span className="tnum">{paper.availableUnits}</span>}
                 size="lg"
               />
               <DataPair
-                label="Committed"
+                label="Angaje"
                 value={<span className="tnum">{paper.committedUnits}</span>}
                 size="lg"
               />
+              <DataPair label="Alwe" value={<span className="tnum">{paper.allocatedUnits}</span>} />
               <DataPair
-                label="Allocated"
-                value={<span className="tnum">{paper.allocatedUnits}</span>}
-              />
-              <DataPair
-                label="Open positions"
+                label="Pozisyon ouvè"
                 value={<span className="tnum">{paper.openPositions}</span>}
               />
             </div>
@@ -155,9 +152,9 @@ export function AccountRiskModule({
   if (!policy.ok) {
     return (
       <Surface aria-labelledby="account-risk-heading" className="flex flex-col">
-        <ModuleHeader label="Account risk" id="account-risk-heading" />
+        <ModuleHeader label="Risk kont" id="account-risk-heading" />
         {policy.unauthorized ? (
-          <Locked what="Risk limits are per account." />
+          <Locked what="Limit risk yo se pa kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(policy)} detail={policy.error} />
@@ -177,7 +174,7 @@ export function AccountRiskModule({
   return (
     <Surface aria-labelledby="account-risk-heading" className="flex flex-col">
       <ModuleHeader
-        label="Account risk"
+        label="Risk kont"
         id="account-risk-heading"
         meta={`policy v${version}`}
         action={<Chip tone="accent">enforced</Chip>}
@@ -185,7 +182,7 @@ export function AccountRiskModule({
       <div className="flex flex-1 flex-col gap-5 px-5 py-5">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
           <DataPair
-            label="Slots free"
+            label="Plas lib"
             value={
               remaining === null ? (
                 <Absent />
@@ -202,7 +199,7 @@ export function AccountRiskModule({
             size="lg"
           />
           <DataPair
-            label="Exposure used"
+            label="Ekspozisyon itilize"
             value={
               account.ok ? (
                 <span className="tnum">
@@ -220,7 +217,7 @@ export function AccountRiskModule({
             value={<span className="tnum">{maxPositionSize}</span>}
           />
           <DataPair
-            label="Loss streak limit"
+            label="Limit seri pèt"
             value={<span className="tnum">{limits.maxConsecutiveLosses}</span>}
           />
         </div>
@@ -264,9 +261,9 @@ export function PaperPositionsModule({ feed }: { feed: ApiResult<PositionsFeed> 
   if (!feed.ok) {
     return (
       <Surface aria-labelledby="positions-heading" className="flex flex-col">
-        <ModuleHeader label="Paper positions" id="positions-heading" />
+        <ModuleHeader label="Pozisyon papye" id="positions-heading" />
         {feed.unauthorized ? (
-          <Locked what="Positions are private to an account." />
+          <Locked what="Pozisyon yo prive pou yon kont." />
         ) : (
           <div className="px-5 py-5">
             <Dormant headline={failureHeadline(feed)} detail={feed.error} />
@@ -281,7 +278,7 @@ export function PaperPositionsModule({ feed }: { feed: ApiResult<PositionsFeed> 
   return (
     <Surface aria-labelledby="positions-heading" className="flex flex-col">
       <ModuleHeader
-        label="Paper positions"
+        label="Pozisyon papye"
         id="positions-heading"
         meta={positions.length > 0 ? `${positions.length} recorded` : undefined}
         action={<Chip tone="warn">simulated</Chip>}
@@ -289,7 +286,7 @@ export function PaperPositionsModule({ feed }: { feed: ApiResult<PositionsFeed> 
       <div className="flex flex-1 flex-col gap-4 px-5 py-5">
         {positions.length === 0 ? (
           <Dormant
-            headline="No paper positions"
+            headline="Pa gen pozisyon papye"
             detail="Positions appear here after you act on a signal and your account risk policy permits it."
           />
         ) : (

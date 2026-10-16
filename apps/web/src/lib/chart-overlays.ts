@@ -36,20 +36,20 @@ export const PRICE_INDICATORS: readonly OverlayDefinition[] = [
   {
     id: 'ema12',
     label: 'EMA 12',
-    detail: 'Exponential moving average, 12 bars',
+    detail: 'Mwayèn mobil eksponansyèl, 12 bouji',
     colour: 'var(--accent)',
   },
   {
     id: 'ema26',
     label: 'EMA 26',
-    detail: 'Exponential moving average, 26 bars',
+    detail: 'Mwayèn mobil eksponansyèl, 26 bouji',
     colour: '#e0a33c',
   },
-  { id: 'sma50', label: 'SMA 50', detail: 'Simple moving average, 50 bars', colour: '#8b9cc4' },
+  { id: 'sma50', label: 'SMA 50', detail: 'Mwayèn mobil senp, 50 bouji', colour: '#8b9cc4' },
   {
     id: 'bb20',
     label: 'Bollinger 20',
-    detail: '20-bar SMA with ±2 standard deviations',
+    detail: 'SMA 20 bouji ak ±2 devyasyon estanda',
     colour: '#5f7a9e',
   },
 ];
@@ -65,28 +65,28 @@ export const OSCILLATORS: readonly { id: string; label: string; reason: string }
   {
     id: 'rsi',
     label: 'RSI 14',
-    reason: 'Bounded 0–100 — needs its own pane, not the price scale.',
+    reason: 'Limite 0–100 — li bezwen pwòp panno pa l, se pa echèl pri a.',
   },
   {
     id: 'adx',
     label: 'ADX 14',
-    reason: 'Bounded 0–100 — needs its own pane, not the price scale.',
+    reason: 'Limite 0–100 — li bezwen pwòp panno pa l, se pa echèl pri a.',
   },
-  { id: 'atr', label: 'ATR 14', reason: 'Measured in price units, not price — a separate pane.' },
+  { id: 'atr', label: 'ATR 14', reason: 'Mezire an inite pri, se pa pri — yon panno apa.' },
 ];
 
 /** Non-indicator overlays drawn from data the page already holds. */
 export const CHART_OVERLAYS: readonly OverlayDefinition[] = [
   {
     id: 'signals',
-    label: 'Signal markers',
-    detail: 'Where BinaryAI recorded a decision on this instrument and timeframe',
+    label: 'Makè siyal',
+    detail: 'Kote BinaryAI anrejistre yon desizyon sou enstriman ak entèval sa a',
     colour: 'var(--accent)',
   },
   {
     id: 'last',
-    label: 'Last price',
-    detail: 'A rule at the most recent close',
+    label: 'Dènye pri',
+    detail: 'Yon liy sou dènye fèmti a',
     colour: '#3ecf8e',
   },
 ];
